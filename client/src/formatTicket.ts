@@ -1,0 +1,30 @@
+import { itemsTotal, jobTotal, type Job } from "./types";
+
+function money(n: number): string {
+  return `$${(Number(n) || 0).toFixed(2)}`;
+}
+
+export function formatTicketText(job: Job): string {
+  const lines: string[] = [];
+
+  if (job.rawTicketText.trim()) {
+    lines.push(job.rawTicketText.trim());
+    lines.push("");
+  }
+
+  lines.push("Items:");
+  for (const item of job.items) {
+    if (!item.description.trim() && !item.cost) continue;
+    lines.push(`  - ${item.description || "(no description)"}: ${money(item.cost)}`);
+  }
+  lines.push(`Items subtotal: ${money(itemsTotal(job))}`);
+  lines.push(`Parts cost: ${money(job.partsCost)}`);
+  lines.push(`Total: ${money(jobTotal(job))}`);
+  lines.push("");
+  lines.push(`Scheduled date: ${job.scheduledDate || "TBD"}`);
+  lines.push(`Repair team needed: ${job.needsRepairTeam ? "Yes" : "No"}`);
+  lines.push("");
+  lines.push(`Deposit: ${money(job.depositAmount)}${job.depositMethod ? ` (${job.depositMethod})` : ""}`);
+
+  return lines.join("\n");
+}
