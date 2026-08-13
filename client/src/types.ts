@@ -55,19 +55,21 @@ export function itemsTotal(job: Job): number {
   return job.items.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
 }
 
+// The job total has the parts cost deducted from the items total (parts are a cost, not
+// something billed on top).
 export function jobTotal(job: Job): number {
-  return itemsTotal(job) + (Number(job.partsCost) || 0);
+  return itemsTotal(job) - (Number(job.partsCost) || 0);
 }
 
 export function balanceRemaining(job: Job): number {
   return jobTotal(job) - (Number(job.depositAmount) || 0);
 }
 
-// Tech profit is 25% of the items total (the job total after parts cost is deducted back out).
+// Tech profit is 25% of the job total (which already has parts cost deducted).
 export const TECH_PROFIT_RATE = 0.25;
 
 export function techProfit(job: Job): number {
-  return itemsTotal(job) * TECH_PROFIT_RATE;
+  return jobTotal(job) * TECH_PROFIT_RATE;
 }
 
 // When the customer pays cash, the tech physically holds the money and owes the company

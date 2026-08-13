@@ -13,6 +13,7 @@ import {
   type Job,
 } from "../types";
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
+import DateButton from "../components/DateButton";
 import { todayISO } from "../dateUtils";
 
 const STATUS_OPTIONS: Choice<Job["status"]>[] = [
@@ -124,7 +125,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
               step="0.01"
               inputMode="decimal"
               placeholder="Cost"
-              value={item.cost}
+              value={item.cost || ""}
               onChange={(e) => updateItem(index, "cost", e.target.value)}
             />
             <button type="button" className="btn btn-danger" onClick={() => removeItem(index)}>
@@ -144,7 +145,8 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
           type="number"
           step="0.01"
           inputMode="decimal"
-          value={job.partsCost}
+          placeholder="0.00"
+          value={job.partsCost || ""}
           onChange={(e) => updateField("partsCost", Number(e.target.value) || 0)}
         />
       </label>
@@ -159,11 +161,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
 
       <label>
         Date job will be done
-        <input
-          type="date"
-          value={job.scheduledDate ?? ""}
-          onChange={(e) => updateField("scheduledDate", e.target.value || null)}
-        />
+        <DateButton value={job.scheduledDate} onChange={(v) => updateField("scheduledDate", v)} />
       </label>
 
       <label className="checkbox-label">
@@ -197,7 +195,8 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
               type="number"
               step="0.01"
               inputMode="decimal"
-              value={job.depositAmount}
+              placeholder="0.00"
+              value={job.depositAmount || ""}
               onChange={(e) => updateField("depositAmount", Number(e.target.value) || 0)}
             />
           </label>

@@ -295,6 +295,34 @@
   gap: 8px !important;
 }
 
+.date-button-wrap {
+  position: relative;
+  align-self: flex-start;
+}
+
+.date-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.date-button-input {
+  position: absolute;
+  inset: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .checkbox-label input[type="checkbox"] {
   width: 20px;
   height: 20px;
