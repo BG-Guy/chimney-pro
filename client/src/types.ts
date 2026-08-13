@@ -1,5 +1,6 @@
 export type DepositMethod = "CC" | "Check" | "Zelle" | "Cash" | "Other" | "";
 export type JobStatus = "awaiting" | "done";
+export type LeadOutcome = "estimate" | "deposit" | "no_estimate";
 
 export interface JobItem {
   id?: number;
@@ -18,6 +19,7 @@ export interface Job {
   depositMethod: DepositMethod;
   depositDate: string | null;
   status: JobStatus;
+  leadOutcome: LeadOutcome;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -37,6 +39,18 @@ export const STATUS_EMOJI: Record<JobStatus, string> = {
   done: "✅",
 };
 
+export const LEAD_OUTCOME_EMOJI: Record<LeadOutcome, string> = {
+  estimate: "📝",
+  deposit: "💰",
+  no_estimate: "🚫",
+};
+
+export const LEAD_OUTCOME_LABEL: Record<LeadOutcome, string> = {
+  estimate: "Left estimate",
+  deposit: "Got deposit",
+  no_estimate: "No estimate",
+};
+
 export function emptyJob(): Job {
   return {
     rawTicketText: "",
@@ -48,6 +62,7 @@ export function emptyJob(): Job {
     depositMethod: "",
     depositDate: null,
     status: "awaiting",
+    leadOutcome: "estimate",
   };
 }
 

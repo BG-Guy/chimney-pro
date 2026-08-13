@@ -144,6 +144,26 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
+}
+
+.job-card-top-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.job-number-chip {
+  border: none;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .status-tag {

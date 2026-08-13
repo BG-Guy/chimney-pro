@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import {
   DEPOSIT_METHOD_EMOJI,
+  LEAD_OUTCOME_EMOJI,
+  LEAD_OUTCOME_LABEL,
   STATUS_EMOJI,
   balanceRemaining,
   cashOwedToCompany,
@@ -22,6 +24,7 @@ export default function JobListPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [copiedNumberId, setCopiedNumberId] = useState<number | null>(null);
 
   useEffect(() => {
     api
@@ -34,6 +37,12 @@ export default function JobListPage() {
     await navigator.clipboard.writeText(formatTicketText(job));
     setCopiedId(job.id!);
     setTimeout(() => setCopiedId(null), 1500);
+  }
+
+  async function handleCopyNumber(job: Job) {
+    await navigator.clipboard.writeText(`#${job.id}`);
+    setCopiedNumberId(job.id!);
+    setTimeout(() => setCopiedNumberId(null), 1500);
   }
 
   async function handleDelete(job: Job) {
@@ -70,16 +79,22 @@ export default function JobListPage() {
     <div className="job-cards">
       {jobs.map((job) => {
         const overdue = isOverdue(job);
+        const outcome = job.leadOutcome ?? (job.depositAmount > 0 ? "deposit" : "estimate");
         return (
           <div className="job-card" key={job.id}>
             <div className="job-card-top">
-              <button
-                type="button"
-                className={`status-tag ${job.status}${overdue ? " overdue" : ""}`}
-                onClick={() => toggleStatus(job)}
-              >
-                {job.status === "done" ? `${STATUS_EMOJI.done} Job done` : overdue ? "⚠️ Overdue" : `${STATUS_EMOJI.awaiting} Job awaits`}
-              </button>
+              <div className="job-card-top-left">
+                <button
+                  type="button"
+                  className={`status-tag ${job.status}${overdue ? " overdue" : ""}`}
+                  onClick={() => toggleStatus(job)}
+                >
+                  {job.status === "done" ? `${STATUS_EMOJI.done} Job done` : overdue ? "⚠️ Overdue" : `${STATUS_EMOJI.awaiting} Job awaits`}
+                </button>
+                <button type="button" className="job-number-chip" onClick={() => handleCopyNumber(job)}>
+                  {copiedNumberId === job.id ? "Copied!" : `#${job.id}`}
+                </button>
+              </div>
               <span className="job-card-total">${jobTotal(job).toFixed(2)}</span>
             </div>
 
@@ -110,6 +125,12 @@ export default function JobListPage() {
               <div>
                 <dt>Balance remaining</dt>
                 <dd>${balanceRemaining(job).toFixed(2)}</dd>
+              </div>
+              <div>
+                <dt>Outcome</dt>
+                <dd>
+                  {LEAD_OUTCOME_EMOJI[outcome]} {LEAD_OUTCOME_LABEL[outcome]}
+                </dd>
               </div>
             </dl>
 

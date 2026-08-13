@@ -4,6 +4,8 @@ import { api } from "../api";
 import {
   DEPOSIT_METHODS,
   DEPOSIT_METHOD_EMOJI,
+  LEAD_OUTCOME_EMOJI,
+  LEAD_OUTCOME_LABEL,
   STATUS_EMOJI,
   cashOwedToCompany,
   emptyJob,
@@ -11,6 +13,7 @@ import {
   jobTotal,
   techProfit,
   type Job,
+  type LeadOutcome,
 } from "../types";
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import DateButton from "../components/DateButton";
@@ -27,26 +30,29 @@ const DEPOSIT_METHOD_OPTIONS: Choice<Job["depositMethod"]>[] = DEPOSIT_METHODS.m
   emoji: DEPOSIT_METHOD_EMOJI[m as Exclude<Job["depositMethod"], "">],
 }));
 
-const DEPOSIT_MADE_OPTIONS: Choice<"yes" | "no">[] = [
-  { value: "yes", label: "Yes", emoji: "💰" },
-  { value: "no", label: "No", emoji: "🚫" },
-];
+const LEAD_OUTCOME_OPTIONS: Choice<LeadOutcome>[] = (["estimate", "deposit", "no_estimate"] as LeadOutcome[]).map(
+  (v) => ({ value: v, label: LEAD_OUTCOME_LABEL[v], emoji: LEAD_OUTCOME_EMOJI[v] })
+);
+
+function inferLeadOutcome(job: Job): LeadOutcome {
+  if (job.leadOutcome) return job.leadOutcome;
+  return job.depositAmount > 0 ? "deposit" : "estimate";
+}
 
 export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [job, setJob] = useState<Job>(emptyJob());
-  const [depositMade, setDepositMade] = useState(false);
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
+  const depositMade = job.leadOutcome === "deposit";
 
   useEffect(() => {
     if (mode === "edit" && id) {
       api
         .getJob(Number(id))
         .then((loaded) => {
-          setJob(loaded);
-          setDepositMade(loaded.depositAmount > 0 || !!loaded.depositMethod || !!loaded.depositDate);
+          setJob({ ...loaded, leadOutcome: inferLeadOutcome(loaded) });
         })
         .finally(() => setLoading(false));
     }
@@ -179,11 +185,11 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
       </label>
 
       <label>
-        Deposit made?
+        Outcome
         <ChoiceBoxes
-          options={DEPOSIT_MADE_OPTIONS}
-          value={depositMade ? "yes" : "no"}
-          onChange={(v) => setDepositMade(v === "yes")}
+          options={LEAD_OUTCOME_OPTIONS}
+          value={job.leadOutcome}
+          onChange={(v) => updateField("leadOutcome", v)}
         />
       </label>
 
