@@ -1,8 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
-import { jobTotal, type Job } from "../types";
+import {
+  DEPOSIT_METHOD_EMOJI,
+  STATUS_EMOJI,
+  balanceRemaining,
+  cashOwedToCompany,
+  jobTotal,
+  techProfit,
+  type Job,
+} from "../types";
 import { formatTicketText } from "../formatTicket";
+
+function isOverdue(job: Job): boolean {
+  if (job.status !== "awaiting" || !job.scheduledDate) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return job.scheduledDate < today;
+}
 
 export default function JobListPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -28,13 +42,24 @@ export default function JobListPage() {
     setJobs((prev) => prev.filter((j) => j.id !== job.id));
   }
 
-  if (loading) return <p>Loading jobs...</p>;
+  async function toggleStatus(job: Job) {
+    const nextStatus = job.status === "done" ? "awaiting" : "done";
+    const updated = await api.setStatus(job.id!, nextStatus);
+    setJobs((prev) => prev.map((j) => (j.id === job.id ? updated : j)));
+  }
+
+  async function markDone(job: Job) {
+    const updated = await api.setStatus(job.id!, "done");
+    setJobs((prev) => prev.map((j) => (j.id === job.id ? updated : j)));
+  }
+
+  if (loading) return <p className="loading-text">Loading jobs...</p>;
 
   if (jobs.length === 0) {
     return (
       <div className="empty-state">
         <p>No jobs yet.</p>
-        <Link to="/jobs/new" className="btn btn-primary">
+        <Link to="/new" className="btn btn-primary">
           Create your first job
         </Link>
       </div>
@@ -42,27 +67,65 @@ export default function JobListPage() {
   }
 
   return (
-    <table className="job-table">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Total</th>
-          <th>Deposit</th>
-          <th>Repair Team</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {jobs.map((job) => (
-          <tr key={job.id}>
-            <td>{job.scheduledDate || "TBD"}</td>
-            <td>${jobTotal(job).toFixed(2)}</td>
-            <td>
-              {job.depositAmount ? `$${job.depositAmount.toFixed(2)}` : "—"}
-              {job.depositMethod ? ` (${job.depositMethod})` : ""}
-            </td>
-            <td>{job.needsRepairTeam ? "Yes" : "No"}</td>
-            <td className="actions">
+    <div className="job-cards">
+      {jobs.map((job) => {
+        const overdue = isOverdue(job);
+        return (
+          <div className="job-card" key={job.id}>
+            <div className="job-card-top">
+              <button
+                type="button"
+                className={`status-tag ${job.status}${overdue ? " overdue" : ""}`}
+                onClick={() => toggleStatus(job)}
+              >
+                {job.status === "done" ? `${STATUS_EMOJI.done} Job done` : overdue ? "⚠️ Overdue" : `${STATUS_EMOJI.awaiting} Job awaits`}
+              </button>
+              <span className="job-card-total">${jobTotal(job).toFixed(2)}</span>
+            </div>
+
+            <dl className="job-card-details">
+              <div>
+                <dt>{job.status === "done" ? "Completed" : "Scheduled"}</dt>
+                <dd>{job.scheduledDate || "TBD"}</dd>
+              </div>
+              <div>
+                <dt>Deposit</dt>
+                <dd>
+                  {job.depositAmount ? `$${job.depositAmount.toFixed(2)}` : "—"}
+                  {job.depositMethod ? ` (${DEPOSIT_METHOD_EMOJI[job.depositMethod]} ${job.depositMethod})` : ""}
+                </dd>
+              </div>
+              <div>
+                <dt>Deposit date</dt>
+                <dd>{job.depositDate || "—"}</dd>
+              </div>
+              <div>
+                <dt>Repair team</dt>
+                <dd>{job.needsRepairTeam ? "Yes" : "No"}</dd>
+              </div>
+              <div>
+                <dt>Tech profit</dt>
+                <dd>${techProfit(job).toFixed(2)}</dd>
+              </div>
+              <div>
+                <dt>Balance remaining</dt>
+                <dd>${balanceRemaining(job).toFixed(2)}</dd>
+              </div>
+            </dl>
+
+            {cashOwedToCompany(job) > 0 && (
+              <p className="cash-owed-callout">
+                Tech collected cash — owes company ${cashOwedToCompany(job).toFixed(2)}
+              </p>
+            )}
+
+            {job.depositAmount > 0 && job.status === "awaiting" && (
+              <button className="btn btn-primary btn-block" onClick={() => markDone(job)}>
+                ✅ Job is done
+              </button>
+            )}
+
+            <div className="job-card-actions">
               <Link to={`/jobs/${job.id}/edit`} className="btn">
                 Edit
               </Link>
@@ -72,10 +135,10 @@ export default function JobListPage() {
               <button className="btn btn-danger" onClick={() => handleDelete(job)}>
                 Delete
               </button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

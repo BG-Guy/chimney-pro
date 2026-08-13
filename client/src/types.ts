@@ -1,4 +1,5 @@
 export type DepositMethod = "CC" | "Check" | "Zelle" | "Cash" | "Other" | "";
+export type JobStatus = "awaiting" | "done";
 
 export interface JobItem {
   id?: number;
@@ -15,11 +16,26 @@ export interface Job {
   needsRepairTeam: boolean;
   depositAmount: number;
   depositMethod: DepositMethod;
+  depositDate: string | null;
+  status: JobStatus;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export const DEPOSIT_METHODS: DepositMethod[] = ["CC", "Check", "Zelle", "Cash", "Other"];
+
+export const DEPOSIT_METHOD_EMOJI: Record<Exclude<DepositMethod, "">, string> = {
+  CC: "💳",
+  Check: "🧾",
+  Zelle: "⚡",
+  Cash: "💵",
+  Other: "🔘",
+};
+
+export const STATUS_EMOJI: Record<JobStatus, string> = {
+  awaiting: "⏳",
+  done: "✅",
+};
 
 export function emptyJob(): Job {
   return {
@@ -30,6 +46,8 @@ export function emptyJob(): Job {
     needsRepairTeam: false,
     depositAmount: 0,
     depositMethod: "",
+    depositDate: null,
+    status: "awaiting",
   };
 }
 
@@ -39,4 +57,29 @@ export function itemsTotal(job: Job): number {
 
 export function jobTotal(job: Job): number {
   return itemsTotal(job) + (Number(job.partsCost) || 0);
+}
+
+export function balanceRemaining(job: Job): number {
+  return jobTotal(job) - (Number(job.depositAmount) || 0);
+}
+
+// Tech profit is 25% of the items total (the job total after parts cost is deducted back out).
+export const TECH_PROFIT_RATE = 0.25;
+
+export function techProfit(job: Job): number {
+  return itemsTotal(job) * TECH_PROFIT_RATE;
+}
+
+// When the customer pays cash, the tech physically holds the money and owes the company
+// everything except their own profit cut.
+export function cashOwedToCompany(job: Job): number {
+  if (job.depositMethod !== "Cash") return 0;
+  return jobTotal(job) - techProfit(job);
+}
+
+export interface GasLog {
+  id?: number;
+  amount: number;
+  date: string;
+  createdAt?: string;
 }

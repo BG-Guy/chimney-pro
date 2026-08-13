@@ -1,23 +1,123 @@
-import type { Job } from "./types";
+import type { GasLog, Job, JobStatus } from "./types";
 
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!res.ok) {
-    throw new Error(`Request failed: ${res.status}`);
+const JOBS_KEY = "chimneypro:jobs";
+const JOBS_SEQ_KEY = "chimneypro:jobs:seq";
+const GAS_KEY = "chimneypro:gas";
+const GAS_SEQ_KEY = "chimneypro:gas:seq";
+
+function read<T>(key: string, fallback: T): T {
+  const raw = localStorage.getItem(key);
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
   }
-  if (res.status === 204) return undefined as T;
-  return res.json();
+}
+
+function write<T>(key: string, value: T) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function nextId(seqKey: string): number {
+  const next = read<number>(seqKey, 0) + 1;
+  write(seqKey, next);
+  return next;
+}
+
+function nowISO(): string {
+  return new Date().toISOString().replace("T", " ").slice(0, 19);
+}
+
+function readJobs(): Job[] {
+  return read<Job[]>(JOBS_KEY, []);
+}
+
+function writeJobs(jobs: Job[]) {
+  write(JOBS_KEY, jobs);
+}
+
+function readGas(): GasLog[] {
+  return read<GasLog[]>(GAS_KEY, []);
+}
+
+function writeGas(logs: GasLog[]) {
+  write(GAS_KEY, logs);
+}
+
+function sortJobs(jobs: Job[]): Job[] {
+  return [...jobs].sort((a, b) => {
+    if (!a.scheduledDate && !b.scheduledDate) return (b.id ?? 0) - (a.id ?? 0);
+    if (!a.scheduledDate) return 1;
+    if (!b.scheduledDate) return -1;
+    if (a.scheduledDate !== b.scheduledDate) return a.scheduledDate < b.scheduledDate ? -1 : 1;
+    return (b.id ?? 0) - (a.id ?? 0);
+  });
+}
+
+function sortGas(logs: GasLog[]): GasLog[] {
+  return [...logs].sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+    return (b.id ?? 0) - (a.id ?? 0);
+  });
 }
 
 export const api = {
-  listJobs: () => request<Job[]>("/api/jobs"),
-  getJob: (id: number) => request<Job>(`/api/jobs/${id}`),
-  createJob: (job: Job) =>
-    request<Job>("/api/jobs", { method: "POST", body: JSON.stringify(job) }),
-  updateJob: (id: number, job: Job) =>
-    request<Job>(`/api/jobs/${id}`, { method: "PUT", body: JSON.stringify(job) }),
-  deleteJob: (id: number) => request<void>(`/api/jobs/${id}`, { method: "DELETE" }),
+  async listJobs(): Promise<Job[]> {
+    return sortJobs(readJobs());
+  },
+
+  async getJob(id: number): Promise<Job> {
+    const job = readJobs().find((j) => j.id === id);
+    if (!job) throw new Error("Job not found");
+    return job;
+  },
+
+  async createJob(job: Job): Promise<Job> {
+    const jobs = readJobs();
+    const now = nowISO();
+    const created: Job = { ...job, id: nextId(JOBS_SEQ_KEY), createdAt: now, updatedAt: now };
+    jobs.push(created);
+    writeJobs(jobs);
+    return created;
+  },
+
+  async updateJob(id: number, job: Job): Promise<Job> {
+    const jobs = readJobs();
+    const idx = jobs.findIndex((j) => j.id === id);
+    if (idx === -1) throw new Error("Job not found");
+    const updated: Job = { ...job, id, createdAt: jobs[idx].createdAt, updatedAt: nowISO() };
+    jobs[idx] = updated;
+    writeJobs(jobs);
+    return updated;
+  },
+
+  async deleteJob(id: number): Promise<void> {
+    writeJobs(readJobs().filter((j) => j.id !== id));
+  },
+
+  async setStatus(id: number, status: JobStatus): Promise<Job> {
+    const jobs = readJobs();
+    const idx = jobs.findIndex((j) => j.id === id);
+    if (idx === -1) throw new Error("Job not found");
+    jobs[idx] = { ...jobs[idx], status, updatedAt: nowISO() };
+    writeJobs(jobs);
+    return jobs[idx];
+  },
+
+  async listGasLogs(): Promise<GasLog[]> {
+    return sortGas(readGas());
+  },
+
+  async createGasLog(entry: GasLog): Promise<GasLog> {
+    const logs = readGas();
+    const created: GasLog = { ...entry, id: nextId(GAS_SEQ_KEY), createdAt: nowISO() };
+    logs.push(created);
+    writeGas(logs);
+    return created;
+  },
+
+  async deleteGasLog(id: number): Promise<void> {
+    writeGas(readGas().filter((l) => l.id !== id));
+  },
 };

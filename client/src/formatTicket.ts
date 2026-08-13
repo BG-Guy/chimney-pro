@@ -21,10 +21,12 @@ export function formatTicketText(job: Job): string {
   lines.push(`Parts cost: ${money(job.partsCost)}`);
   lines.push(`Total: ${money(jobTotal(job))}`);
   lines.push("");
-  lines.push(`Scheduled date: ${job.scheduledDate || "TBD"}`);
+  lines.push(`Status: ${job.status === "done" ? "Job done" : "Job awaits"}`);
+  lines.push(`${job.status === "done" ? "Completed" : "Scheduled"} date: ${job.scheduledDate || "TBD"}`);
   lines.push(`Repair team needed: ${job.needsRepairTeam ? "Yes" : "No"}`);
   lines.push("");
   lines.push(`Deposit: ${money(job.depositAmount)}${job.depositMethod ? ` (${job.depositMethod})` : ""}`);
+  if (job.depositDate) lines.push(`Deposit date: ${job.depositDate}`);
 
   return lines.join("\n");
 }
