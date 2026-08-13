@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { CalendarIcon } from "./icons";
 
 function formatDateShort(dateStr: string): string {
@@ -16,32 +15,18 @@ export default function DateButton({
   onChange: (value: string | null) => void;
   placeholder?: string;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  function openPicker() {
-    const el = inputRef.current;
-    if (!el) return;
-    if (typeof el.showPicker === "function") {
-      el.showPicker();
-    } else {
-      el.focus();
-    }
-  }
-
   return (
     <div className="date-button-wrap">
-      <button type="button" className="date-button" onClick={openPicker}>
+      <div className="date-button" aria-hidden="true">
         <CalendarIcon size={16} />
         <span>{value ? formatDateShort(value) : placeholder}</span>
-      </button>
+      </div>
       <input
-        ref={inputRef}
         type="date"
         className="date-button-input"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
-        tabIndex={-1}
-        aria-hidden="true"
+        aria-label={placeholder}
       />
     </div>
   );
