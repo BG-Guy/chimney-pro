@@ -7,11 +7,6 @@ function money(n: number): string {
 export function formatTicketText(job: Job): string {
   const lines: string[] = [];
 
-  if (job.id) {
-    lines.push(`Job #${job.id}`);
-    lines.push("");
-  }
-
   if (job.rawTicketText.trim()) {
     lines.push(job.rawTicketText.trim());
     lines.push("");

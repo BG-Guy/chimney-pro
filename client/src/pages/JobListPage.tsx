@@ -13,6 +13,7 @@ import {
   type Job,
 } from "../types";
 import { formatTicketText } from "../formatTicket";
+import { extractTicketNumber } from "../ticketNumber";
 
 function isOverdue(job: Job): boolean {
   if (job.status !== "awaiting" || !job.scheduledDate) return false;
@@ -39,8 +40,8 @@ export default function JobListPage() {
     setTimeout(() => setCopiedId(null), 1500);
   }
 
-  async function handleCopyNumber(job: Job) {
-    await navigator.clipboard.writeText(`#${job.id}`);
+  async function handleCopyNumber(job: Job, ticketNumber: string) {
+    await navigator.clipboard.writeText(`#${ticketNumber}`);
     setCopiedNumberId(job.id!);
     setTimeout(() => setCopiedNumberId(null), 1500);
   }
@@ -80,6 +81,7 @@ export default function JobListPage() {
       {jobs.map((job) => {
         const overdue = isOverdue(job);
         const outcome = job.leadOutcome ?? (job.depositAmount > 0 ? "deposit" : "estimate");
+        const ticketNumber = extractTicketNumber(job.rawTicketText);
         return (
           <div className="job-card" key={job.id}>
             <div className="job-card-top">
@@ -91,9 +93,11 @@ export default function JobListPage() {
                 >
                   {job.status === "done" ? `${STATUS_EMOJI.done} Job done` : overdue ? "⚠️ Overdue" : `${STATUS_EMOJI.awaiting} Job awaits`}
                 </button>
-                <button type="button" className="job-number-chip" onClick={() => handleCopyNumber(job)}>
-                  {copiedNumberId === job.id ? "Copied!" : `#${job.id}`}
-                </button>
+                {ticketNumber && (
+                  <button type="button" className="job-number-chip" onClick={() => handleCopyNumber(job, ticketNumber)}>
+                    {copiedNumberId === job.id ? "Copied!" : `#${ticketNumber}`}
+                  </button>
+                )}
               </div>
               <span className="job-card-total">${jobTotal(job).toFixed(2)}</span>
             </div>
