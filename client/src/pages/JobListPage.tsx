@@ -19,6 +19,14 @@ import { formatTicketText } from "../formatTicket";
 import { extractTicketNumber } from "../ticketNumber";
 import { extractCustomerName } from "../customerName";
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
+import MonthWeekPicker from "../components/MonthWeekPicker";
+import { currentMonthOption, currentWeekOfMonthN, recentMonths, weeksOfMonth, type MonthOption } from "../dateBuckets";
+import { inRange } from "../dateUtils";
+
+function formatDateRange(start: Date, end: Date): string {
+  const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return `${fmt(start)} – ${fmt(end)}`;
+}
 
 function isOverdue(job: Job): boolean {
   if (job.status !== "awaiting" || !job.scheduledDate) return false;
@@ -79,6 +87,12 @@ export default function JobListPage() {
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all");
   const [tagFilter, setTagFilter] = useState<number[]>([]);
+  const [paycheckFilterOn, setPaycheckFilterOn] = useState(false);
+  const [paycheckMonth, setPaycheckMonth] = useState<MonthOption>(() => currentMonthOption());
+  const [paycheckWeekN, setPaycheckWeekN] = useState<number>(() => {
+    const m = currentMonthOption();
+    return currentWeekOfMonthN(m.year, m.month);
+  });
 
   useEffect(() => {
     api
@@ -92,14 +106,28 @@ export default function JobListPage() {
     setTagFilter((prev) => (prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]));
   }
 
+  function handleSelectPaycheckMonth(m: MonthOption) {
+    setPaycheckMonth(m);
+    const isCurrentMonth = m.year === currentMonthOption().year && m.month === currentMonthOption().month;
+    const w = weeksOfMonth(m.year, m.month);
+    setPaycheckWeekN(isCurrentMonth ? currentWeekOfMonthN(m.year, m.month) : w[w.length - 1]?.n ?? 1);
+  }
+
+  const paycheckMonths = useMemo(() => recentMonths(12), []);
+  const paycheckWeeks = useMemo(() => weeksOfMonth(paycheckMonth.year, paycheckMonth.month), [paycheckMonth]);
+  const paycheckWeek = paycheckWeeks.find((w) => w.n === paycheckWeekN) ?? paycheckWeeks[paycheckWeeks.length - 1];
+
   const visibleJobs = useMemo(() => {
     const filtered = jobs.filter((job) => {
       if (statusFilter !== "all" && job.status !== statusFilter) return false;
       if (tagFilter.length > 0 && !job.tagIds.some((id) => tagFilter.includes(id))) return false;
+      if (paycheckFilterOn && paycheckWeek) {
+        if (!inRange(job.completedDate, paycheckWeek.weekStartISO, paycheckWeek.weekEndISO)) return false;
+      }
       return true;
     });
     return sortJobsBy(filtered, sortMode);
-  }, [jobs, sortMode, statusFilter, tagFilter]);
+  }, [jobs, sortMode, statusFilter, tagFilter, paycheckFilterOn, paycheckWeek]);
 
   async function handleCopy(job: Job) {
     await navigator.clipboard.writeText(formatTicketText(job));
@@ -168,6 +196,35 @@ export default function JobListPage() {
           })}
         </div>
       )}
+
+      <div className="paycheck-filter">
+        <button
+          type="button"
+          className={`chip-pill${paycheckFilterOn ? " selected" : ""}`}
+          onClick={() => setPaycheckFilterOn((prev) => !prev)}
+        >
+          💸 Paycheck week
+        </button>
+
+        {paycheckFilterOn && (
+          <>
+            <MonthWeekPicker
+              months={paycheckMonths}
+              selectedMonth={paycheckMonth}
+              onSelectMonth={handleSelectPaycheckMonth}
+              weeks={paycheckWeeks}
+              selectedWeekN={paycheckWeekN}
+              onSelectWeekN={setPaycheckWeekN}
+            />
+            {paycheckWeek && (
+              <p className="empty-hint">
+                Jobs marked done {formatDateRange(paycheckWeek.weekStart, paycheckWeek.weekEnd)} — that's the
+                paycheck this covers
+              </p>
+            )}
+          </>
+        )}
+      </div>
 
       {visibleJobs.length === 0 ? (
         <div className="empty-state">

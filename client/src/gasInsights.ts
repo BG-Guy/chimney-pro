@@ -12,16 +12,11 @@ export interface GasWeekPoint {
 
 export interface GasInsights {
   totalAllTime: number;
-  thisWeek: number;
-  lastWeek: number;
-  thisMonth: number;
-  lastMonth: number;
   weeklyTrend: GasWeekPoint[];
 }
 
 export function computeGasInsights(logs: GasLog[]): GasInsights {
-  const { weekStart, weekEnd, lastWeekStart, lastWeekEnd, monthStart, monthEnd, lastMonthStart, lastMonthEnd } =
-    computeDateRanges();
+  const { weekStart } = computeDateRanges();
 
   const weeklyTrend: GasWeekPoint[] = [];
   for (let i = 5; i >= 0; i--) {
@@ -32,10 +27,6 @@ export function computeGasInsights(logs: GasLog[]): GasInsights {
 
   return {
     totalAllTime: logs.reduce((sum, l) => sum + l.amount, 0),
-    thisWeek: sumInRange(logs, fmtISO(weekStart), fmtISO(weekEnd)),
-    lastWeek: sumInRange(logs, fmtISO(lastWeekStart), fmtISO(lastWeekEnd)),
-    thisMonth: sumInRange(logs, fmtISO(monthStart), fmtISO(monthEnd)),
-    lastMonth: sumInRange(logs, fmtISO(lastMonthStart), fmtISO(lastMonthEnd)),
     weeklyTrend,
   };
 }

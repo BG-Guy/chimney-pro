@@ -136,6 +136,13 @@
   gap: 8px;
 }
 
+.paycheck-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
 .job-cards {
   display: flex;
   flex-direction: column;
@@ -609,6 +616,30 @@ legend {
   font-weight: 600;
 }
 
+.metric-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metric-row-label {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.metric-row-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .delta {
   font-size: 0.72rem;
   font-weight: 600;
@@ -740,6 +771,46 @@ legend {
   text-align: right;
   font-size: 0.78rem;
   color: var(--text-muted);
+}
+
+/* Month / week picker */
+
+.month-week-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chip-scroll-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.chip-scroll-row::-webkit-scrollbar {
+  display: none;
+}
+
+.chip-pill {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip-pill.selected {
+  border-color: var(--series-1);
+  background: var(--accent-bg);
+  color: var(--text-primary);
 }
 
 /* Weekly reports */

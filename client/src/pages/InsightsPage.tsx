@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { computeInsights, pctDelta, type Insights } from "../insights";
+import { computeInsights, computePeriodMetrics, pctDelta, type Insights, type PeriodMetrics } from "../insights";
 import { computeGasInsights, type GasInsights } from "../gasInsights";
-import { computeWeeklyReports, downloadWeeklyReportCsv, type WeeklyReport } from "../weeklyReports";
+import { buildWeeklyReport, downloadWeeklyReportCsv } from "../weeklyReports";
+import {
+  currentMonthOption,
+  currentWeekOfMonthN,
+  recentMonths,
+  weeksOfMonth,
+  type MonthOption,
+} from "../dateBuckets";
+import { computeDateRanges, fmtISO } from "../dateUtils";
+import MonthWeekPicker from "../components/MonthWeekPicker";
 import { DEPOSIT_METHOD_EMOJI, type GasLog, type Job } from "../types";
 
 function formatCompactMoney(n: number): string {
@@ -39,40 +48,27 @@ function StatTile({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-function ComparisonCard({
-  title,
-  caption,
-  current,
-  previous,
+function MetricRow({
+  label,
+  value,
+  delta,
+  upIsGood = true,
 }: {
-  title: string;
-  caption: string;
-  current: { jobCount: number; revenue: number };
-  previous: { jobCount: number; revenue: number };
+  label: string;
+  value: string;
+  delta: number | null;
+  upIsGood?: boolean;
 }) {
   return (
-    <div className="card">
-      <div className="card-header">
-        <h3>{title}</h3>
-        <span className="card-caption">{caption}</span>
-      </div>
-      <div className="comparison-row">
-        <div className="comparison-metric">
-          <span className="comparison-label">Jobs</span>
-          <span className="comparison-value">{current.jobCount}</span>
-          <DeltaBadge value={pctDelta(current.jobCount, previous.jobCount)} />
-        </div>
-        <div className="comparison-metric">
-          <span className="comparison-label">Revenue</span>
-          <span className="comparison-value">{formatCompactMoney(current.revenue)}</span>
-          <DeltaBadge value={pctDelta(current.revenue, previous.revenue)} />
-        </div>
-      </div>
+    <div className="metric-row">
+      <span className="metric-row-label">{label}</span>
+      <span className="metric-row-value">{value}</span>
+      <DeltaBadge value={delta} upIsGood={upIsGood} />
     </div>
   );
 }
 
-function GasComparisonCard({
+function PeriodComparisonCard({
   title,
   caption,
   current,
@@ -80,8 +76,8 @@ function GasComparisonCard({
 }: {
   title: string;
   caption: string;
-  current: number;
-  previous: number;
+  current: PeriodMetrics;
+  previous: PeriodMetrics;
 }) {
   return (
     <div className="card">
@@ -89,12 +85,45 @@ function GasComparisonCard({
         <h3>{title}</h3>
         <span className="card-caption">{caption}</span>
       </div>
-      <div className="comparison-row">
-        <div className="comparison-metric">
-          <span className="comparison-label">Spent on gas</span>
-          <span className="comparison-value">{formatCompactMoney(current)}</span>
-          <DeltaBadge value={pctDelta(current, previous)} upIsGood={false} />
-        </div>
+      <div className="metric-rows">
+        <MetricRow label="Jobs" value={String(current.jobCount)} delta={pctDelta(current.jobCount, previous.jobCount)} />
+        <MetricRow
+          label="Revenue"
+          value={formatCompactMoney(current.revenue)}
+          delta={pctDelta(current.revenue, previous.revenue)}
+        />
+        <MetricRow
+          label="Parts cost"
+          value={formatCompactMoney(current.partsCost)}
+          delta={pctDelta(current.partsCost, previous.partsCost)}
+          upIsGood={false}
+        />
+        <MetricRow
+          label="Tech profit"
+          value={formatCompactMoney(current.techProfit)}
+          delta={pctDelta(current.techProfit, previous.techProfit)}
+        />
+        <MetricRow
+          label="Avg ticket"
+          value={formatCompactMoney(current.avgTicket)}
+          delta={pctDelta(current.avgTicket, previous.avgTicket)}
+        />
+        <MetricRow
+          label="Closing rate"
+          value={`${current.closingRate.toFixed(0)}%`}
+          delta={pctDelta(current.closingRate, previous.closingRate)}
+        />
+        <MetricRow
+          label="Repair team jobs"
+          value={String(current.repairTeamCount)}
+          delta={pctDelta(current.repairTeamCount, previous.repairTeamCount)}
+        />
+        <MetricRow
+          label="Gas expense"
+          value={formatCompactMoney(current.gasExpense)}
+          delta={pctDelta(current.gasExpense, previous.gasExpense)}
+          upIsGood={false}
+        />
       </div>
     </div>
   );
@@ -207,90 +236,107 @@ function PaidMethods({ counts }: { counts: Insights["paidMethodCounts"] }) {
   );
 }
 
-function WeeklyReports({ reports }: { reports: WeeklyReport[] }) {
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+function defaultWeekNFor(m: MonthOption): number {
+  const real = currentMonthOption();
+  if (m.year === real.year && m.month === real.month) return currentWeekOfMonthN(m.year, m.month);
+  const w = weeksOfMonth(m.year, m.month);
+  return w[w.length - 1]?.n ?? 1;
+}
+
+function QuickInsightsReport({ jobs, gasLogs }: { jobs: Job[]; gasLogs: GasLog[] }) {
+  const months = useMemo(() => recentMonths(12), []);
+  const [selectedMonth, setSelectedMonth] = useState<MonthOption>(() => currentMonthOption());
+  const [selectedWeekN, setSelectedWeekN] = useState<number>(() => defaultWeekNFor(currentMonthOption()));
+  const weeks = useMemo(() => weeksOfMonth(selectedMonth.year, selectedMonth.month), [selectedMonth]);
+
+  function handleSelectMonth(m: MonthOption) {
+    setSelectedMonth(m);
+    setSelectedWeekN(defaultWeekNFor(m));
+  }
+
+  const activeWeek = weeks.find((w) => w.n === selectedWeekN) ?? weeks[weeks.length - 1];
+  const report = useMemo(
+    () =>
+      activeWeek
+        ? buildWeeklyReport(jobs, gasLogs, activeWeek.weekStart, `${selectedMonth.label} · ${activeWeek.label}`)
+        : null,
+    [jobs, gasLogs, activeWeek, selectedMonth]
+  );
 
   return (
     <div className="card">
       <div className="card-header">
-        <h3>Weekly reports</h3>
+        <h3>Quick insights report</h3>
       </div>
-      <div className="week-report-list">
-        {reports.map((report) => {
-          const isOpen = expandedKey === report.key;
-          return (
-            <div className="week-report" key={report.key}>
-              <button
-                type="button"
-                className="week-report-row"
-                onClick={() => setExpandedKey(isOpen ? null : report.key)}
-              >
-                <span className="week-report-info">
-                  <span className="week-report-title">{report.label}</span>
-                  <span className="week-report-dates">{report.dateRange}</span>
-                </span>
-                <span className="week-report-jobcount">
-                  {report.jobs.length} job{report.jobs.length === 1 ? "" : "s"}
-                </span>
-              </button>
 
-              {isOpen && (
-                <div className="week-report-detail">
-                  {report.jobs.length === 0 ? (
-                    <p className="empty-hint">No jobs scheduled this week.</p>
-                  ) : (
-                    <>
-                      <div className="week-report-jobs">
-                        {report.jobs.map((j) => (
-                          <div className="week-report-job" key={j.id}>
-                            <div className="week-report-job-top">
-                              <span>
-                                #{j.id}
-                                {j.customerName ? ` · ${j.customerName}` : ""}
-                              </span>
-                              <span>${j.total.toFixed(2)}</span>
-                            </div>
-                            <dl className="job-card-details">
-                              <div>
-                                <dt>Parts</dt>
-                                <dd>${j.partsCost.toFixed(2)}</dd>
-                              </div>
-                              <div>
-                                <dt>Tech profit</dt>
-                                <dd>${j.techProfit.toFixed(2)}</dd>
-                              </div>
-                              <div>
-                                <dt>Paid</dt>
-                                <dd>
-                                  ${j.paid.toFixed(2)}
-                                  {j.paidMethods ? ` (${j.paidMethods})` : ""}
-                                </dd>
-                              </div>
-                              <div>
-                                <dt>Balance</dt>
-                                <dd>${j.balance.toFixed(2)}</dd>
-                              </div>
-                            </dl>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="subtotal">
-                        Totals — Revenue ${report.totals.total.toFixed(2)} · Parts $
-                        {report.totals.partsCost.toFixed(2)} · Tech profit $
-                        {report.totals.techProfit.toFixed(2)} · Paid ${report.totals.paid.toFixed(2)} · Balance $
-                        {report.totals.balance.toFixed(2)}
-                      </p>
-                    </>
-                  )}
-                  <button type="button" className="btn" onClick={() => downloadWeeklyReportCsv(report)}>
-                    ⬇️ Export CSV
-                  </button>
+      <MonthWeekPicker
+        months={months}
+        selectedMonth={selectedMonth}
+        onSelectMonth={handleSelectMonth}
+        weeks={weeks}
+        selectedWeekN={selectedWeekN}
+        onSelectWeekN={setSelectedWeekN}
+      />
+
+      {report && (
+        <>
+          <p className="card-caption">{report.dateRange}</p>
+
+          <div className="stat-grid">
+            <StatTile label="Jobs" value={String(report.metrics.jobCount)} />
+            <StatTile label="Revenue" value={formatCompactMoney(report.metrics.revenue)} />
+            <StatTile label="Parts cost" value={formatCompactMoney(report.metrics.partsCost)} />
+            <StatTile label="Tech profit" value={formatCompactMoney(report.metrics.techProfit)} />
+            <StatTile label="Avg ticket" value={formatCompactMoney(report.metrics.avgTicket)} />
+            <StatTile label="Closing rate" value={`${report.metrics.closingRate.toFixed(0)}%`} />
+            <StatTile label="Repair team jobs" value={String(report.metrics.repairTeamCount)} />
+            <StatTile label="Gas expense" value={formatCompactMoney(report.metrics.gasExpense)} />
+          </div>
+
+          {report.jobs.length === 0 ? (
+            <p className="empty-hint">No jobs scheduled this week.</p>
+          ) : (
+            <div className="week-report-jobs">
+              {report.jobs.map((j) => (
+                <div className="week-report-job" key={j.id}>
+                  <div className="week-report-job-top">
+                    <span>
+                      #{j.id}
+                      {j.customerName ? ` · ${j.customerName}` : ""}
+                    </span>
+                    <span>${j.total.toFixed(2)}</span>
+                  </div>
+                  <dl className="job-card-details">
+                    <div>
+                      <dt>Parts</dt>
+                      <dd>${j.partsCost.toFixed(2)}</dd>
+                    </div>
+                    <div>
+                      <dt>Tech profit</dt>
+                      <dd>${j.techProfit.toFixed(2)}</dd>
+                    </div>
+                    <div>
+                      <dt>Paid</dt>
+                      <dd>
+                        ${j.paid.toFixed(2)}
+                        {j.paidMethods ? ` (${j.paidMethods})` : ""}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Balance</dt>
+                      <dd>${j.balance.toFixed(2)}</dd>
+                    </div>
+                  </dl>
                 </div>
-              )}
+              ))}
             </div>
-          );
-        })}
-      </div>
+          )}
+
+          <button type="button" className="btn" onClick={() => downloadWeeklyReportCsv(report)}>
+            ⬇️ Export CSV
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -326,7 +372,18 @@ export default function InsightsPage() {
     api.listGasLogs().then(setGasLogs);
   }, []);
 
-  const weeklyReports = useMemo(() => computeWeeklyReports(jobs ?? []), [jobs]);
+  const periodMetrics = useMemo(() => {
+    const j = jobs ?? [];
+    const g = gasLogs ?? [];
+    const { weekStart, weekEnd, lastWeekStart, lastWeekEnd, monthStart, monthEnd, lastMonthStart, lastMonthEnd } =
+      computeDateRanges();
+    return {
+      thisWeek: computePeriodMetrics(j, g, fmtISO(weekStart), fmtISO(weekEnd)),
+      lastWeek: computePeriodMetrics(j, g, fmtISO(lastWeekStart), fmtISO(lastWeekEnd)),
+      thisMonth: computePeriodMetrics(j, g, fmtISO(monthStart), fmtISO(monthEnd)),
+      lastMonth: computePeriodMetrics(j, g, fmtISO(lastMonthStart), fmtISO(lastMonthEnd)),
+    };
+  }, [jobs, gasLogs]);
 
   if (!jobs || !gasLogs) return <p className="loading-text">Loading insights...</p>;
 
@@ -344,6 +401,21 @@ export default function InsightsPage() {
 
   return (
     <div className="insights">
+      <PeriodComparisonCard
+        title="This week"
+        caption="vs last week"
+        current={periodMetrics.thisWeek}
+        previous={periodMetrics.lastWeek}
+      />
+      <PeriodComparisonCard
+        title="This month"
+        caption="vs last month"
+        current={periodMetrics.thisMonth}
+        previous={periodMetrics.lastMonth}
+      />
+
+      <QuickInsightsReport jobs={jobs} gasLogs={gasLogs} />
+
       {insights && (
         <>
           <div className="stat-grid">
@@ -359,11 +431,6 @@ export default function InsightsPage() {
             color="var(--series-1)"
             points={insights.weeklyTrend.map((p) => ({ label: p.label, value: p.revenue }))}
           />
-
-          <ComparisonCard title="This week" caption="vs last week" current={insights.thisWeek} previous={insights.lastWeek} />
-          <ComparisonCard title="This month" caption="vs last month" current={insights.thisMonth} previous={insights.lastMonth} />
-
-          <WeeklyReports reports={weeklyReports} />
 
           <div className="card">
             <div className="card-header">
@@ -412,8 +479,6 @@ export default function InsightsPage() {
       {gasLogs.length > 0 && (
         <>
           <StatTile label="Total gas expense" value={formatMoney(gasInsights.totalAllTime)} sub="all time" />
-          <GasComparisonCard title="Gas this week" caption="vs last week" current={gasInsights.thisWeek} previous={gasInsights.lastWeek} />
-          <GasComparisonCard title="Gas this month" caption="vs last month" current={gasInsights.thisMonth} previous={gasInsights.lastMonth} />
           <Sparkline
             title="Gas trend"
             caption="Last 6 weeks"

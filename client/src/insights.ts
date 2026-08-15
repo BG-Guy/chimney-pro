@@ -1,16 +1,39 @@
-import { cashOwedToCompany, jobTotal, techProfit, totalPaid, type DepositMethod, type Job } from "./types";
+import { cashOwedToCompany, jobTotal, techProfit, totalPaid, type DepositMethod, type GasLog, type Job } from "./types";
 import { addDays, computeDateRanges, fmtISO, inRange } from "./dateUtils";
 
-interface Period {
+export interface PeriodMetrics {
   jobCount: number;
   revenue: number;
+  partsCost: number;
+  techProfit: number;
+  avgTicket: number;
+  closingRate: number;
+  repairTeamCount: number;
+  gasExpense: number;
 }
 
-function summarizePeriod(jobs: Job[], startStr: string, endStr: string): Period {
-  const inPeriod = jobs.filter((j) => inRange(j.scheduledDate, startStr, endStr));
+// Jobs are bucketed into a period by scheduledDate (same convention as the rest of
+// Insights); gas expense is bucketed by the gas log's own date.
+export function computePeriodMetrics(
+  jobs: Job[],
+  gasLogs: GasLog[],
+  startStr: string,
+  endStr: string
+): PeriodMetrics {
+  const periodJobs = jobs.filter((j) => inRange(j.scheduledDate, startStr, endStr));
+  const jobCount = periodJobs.length;
+  const revenue = periodJobs.reduce((sum, j) => sum + jobTotal(j), 0);
+  const depositsWon = periodJobs.filter((j) => j.leadOutcome === "deposit").length;
+
   return {
-    jobCount: inPeriod.length,
-    revenue: inPeriod.reduce((sum, j) => sum + jobTotal(j), 0),
+    jobCount,
+    revenue,
+    partsCost: periodJobs.reduce((sum, j) => sum + (Number(j.partsCost) || 0), 0),
+    techProfit: periodJobs.reduce((sum, j) => sum + techProfit(j), 0),
+    avgTicket: jobCount ? revenue / jobCount : 0,
+    closingRate: jobCount ? (depositsWon / jobCount) * 100 : 0,
+    repairTeamCount: periodJobs.filter((j) => j.needsRepairTeam).length,
+    gasExpense: gasLogs.filter((g) => inRange(g.date, startStr, endStr)).reduce((sum, g) => sum + g.amount, 0),
   };
 }
 
@@ -30,10 +53,6 @@ export interface Insights {
   repairTeamPct: number;
   avgPaid: number;
   paidMethodCounts: Partial<Record<DepositMethod, number>>;
-  thisWeek: Period;
-  lastWeek: Period;
-  thisMonth: Period;
-  lastMonth: Period;
   weeklyTrend: WeekPoint[];
   totalTechProfit: number;
   totalCashOwed: number;
@@ -43,8 +62,7 @@ export interface Insights {
 }
 
 export function computeInsights(jobs: Job[]): Insights {
-  const { todayStr, weekStart, weekEnd, lastWeekStart, lastWeekEnd, monthStart, monthEnd, lastMonthStart, lastMonthEnd } =
-    computeDateRanges();
+  const { todayStr, weekStart, weekEnd } = computeDateRanges();
 
   const totalJobs = jobs.length;
   const depositsWon = jobs.filter((j) => j.leadOutcome === "deposit");
@@ -75,8 +93,12 @@ export function computeInsights(jobs: Job[]): Insights {
   for (let i = 5; i >= 0; i--) {
     const wStart = addDays(weekStart, -7 * i);
     const wEnd = addDays(wStart, 6);
-    const period = summarizePeriod(jobs, fmtISO(wStart), fmtISO(wEnd));
-    weeklyTrend.push({ label: fmtISO(wStart), revenue: period.revenue });
+    const wStartISO = fmtISO(wStart);
+    const wEndISO = fmtISO(wEnd);
+    const revenue = jobs
+      .filter((j) => inRange(j.scheduledDate, wStartISO, wEndISO))
+      .reduce((sum, j) => sum + jobTotal(j), 0);
+    weeklyTrend.push({ label: wStartISO, revenue });
   }
 
   return {
@@ -92,10 +114,6 @@ export function computeInsights(jobs: Job[]): Insights {
       ? jobsPaid.reduce((sum, j) => sum + totalPaid(j), 0) / jobsPaid.length
       : 0,
     paidMethodCounts,
-    thisWeek: summarizePeriod(jobs, fmtISO(weekStart), fmtISO(weekEnd)),
-    lastWeek: summarizePeriod(jobs, fmtISO(lastWeekStart), fmtISO(lastWeekEnd)),
-    thisMonth: summarizePeriod(jobs, fmtISO(monthStart), fmtISO(monthEnd)),
-    lastMonth: summarizePeriod(jobs, fmtISO(lastMonthStart), fmtISO(lastMonthEnd)),
     weeklyTrend,
     totalTechProfit: jobs.reduce((sum, j) => sum + techProfit(j), 0),
     totalCashOwed: jobs.reduce((sum, j) => sum + cashOwedToCompany(j), 0),
