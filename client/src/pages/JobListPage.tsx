@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import {
@@ -12,10 +12,13 @@ import {
   techProfit,
   totalPaid,
   type Job,
+  type JobStatus,
+  type Tag,
 } from "../types";
 import { formatTicketText } from "../formatTicket";
 import { extractTicketNumber } from "../ticketNumber";
 import { extractCustomerName } from "../customerName";
+import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 
 function isOverdue(job: Job): boolean {
   if (job.status !== "awaiting" || !job.scheduledDate) return false;
@@ -23,18 +26,80 @@ function isOverdue(job: Job): boolean {
   return job.scheduledDate < today;
 }
 
+type SortMode = "newest" | "oldest" | "scheduled" | "total";
+
+const SORT_OPTIONS: Choice<SortMode>[] = [
+  { value: "newest", label: "Newest", emoji: "🆕" },
+  { value: "oldest", label: "Oldest", emoji: "📜" },
+  { value: "scheduled", label: "Scheduled", emoji: "📅" },
+  { value: "total", label: "Total", emoji: "💵" },
+];
+
+const STATUS_FILTER_OPTIONS: Choice<JobStatus | "all">[] = [
+  { value: "all", label: "All", emoji: "📋" },
+  { value: "awaiting", label: "Awaits", emoji: STATUS_EMOJI.awaiting },
+  { value: "done", label: "Done", emoji: STATUS_EMOJI.done },
+];
+
+function sortJobsBy(jobs: Job[], mode: SortMode): Job[] {
+  const sorted = [...jobs];
+  switch (mode) {
+    case "newest":
+      sorted.sort((a, b) =>
+        a.loggedDate !== b.loggedDate ? (a.loggedDate < b.loggedDate ? 1 : -1) : (b.id ?? 0) - (a.id ?? 0)
+      );
+      break;
+    case "oldest":
+      sorted.sort((a, b) =>
+        a.loggedDate !== b.loggedDate ? (a.loggedDate > b.loggedDate ? 1 : -1) : (a.id ?? 0) - (b.id ?? 0)
+      );
+      break;
+    case "scheduled":
+      sorted.sort((a, b) => {
+        if (!a.scheduledDate && !b.scheduledDate) return (b.id ?? 0) - (a.id ?? 0);
+        if (!a.scheduledDate) return 1;
+        if (!b.scheduledDate) return -1;
+        if (a.scheduledDate !== b.scheduledDate) return a.scheduledDate < b.scheduledDate ? -1 : 1;
+        return (b.id ?? 0) - (a.id ?? 0);
+      });
+      break;
+    case "total":
+      sorted.sort((a, b) => jobTotal(b) - jobTotal(a));
+      break;
+  }
+  return sorted;
+}
+
 export default function JobListPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [copiedNumberId, setCopiedNumberId] = useState<number | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("newest");
+  const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all");
+  const [tagFilter, setTagFilter] = useState<number[]>([]);
 
   useEffect(() => {
     api
       .listJobs()
       .then(setJobs)
       .finally(() => setLoading(false));
+    api.listTags().then(setTags);
   }, []);
+
+  function toggleTagFilter(tagId: number) {
+    setTagFilter((prev) => (prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]));
+  }
+
+  const visibleJobs = useMemo(() => {
+    const filtered = jobs.filter((job) => {
+      if (statusFilter !== "all" && job.status !== statusFilter) return false;
+      if (tagFilter.length > 0 && !job.tagIds.some((id) => tagFilter.includes(id))) return false;
+      return true;
+    });
+    return sortJobsBy(filtered, sortMode);
+  }, [jobs, sortMode, statusFilter, tagFilter]);
 
   async function handleCopy(job: Job) {
     await navigator.clipboard.writeText(formatTicketText(job));
@@ -79,98 +144,134 @@ export default function JobListPage() {
   }
 
   return (
-    <div className="job-cards">
-      {jobs.map((job) => {
-        const overdue = isOverdue(job);
-        const outcome = job.leadOutcome;
-        const ticketNumber = extractTicketNumber(job.rawTicketText);
-        const customerName = extractCustomerName(job.rawTicketText);
-        return (
-          <div className="job-card" key={job.id}>
-            {customerName && <p className="job-card-customer">{customerName}</p>}
-            <div className="job-card-top">
-              <div className="job-card-top-left">
-                <button
-                  type="button"
-                  className={`status-tag ${job.status}${overdue ? " overdue" : ""}`}
-                  onClick={() => toggleStatus(job)}
-                >
-                  {job.status === "done" ? `${STATUS_EMOJI.done} Job done` : overdue ? "⚠️ Overdue" : `${STATUS_EMOJI.awaiting} Job awaits`}
-                </button>
-                {ticketNumber && (
-                  <button type="button" className="job-number-chip" onClick={() => handleCopyNumber(job, ticketNumber)}>
-                    {copiedNumberId === job.id ? "Copied!" : `#${ticketNumber}`}
+    <div className="job-list">
+      <div className="jobs-toolbar">
+        <ChoiceBoxes options={SORT_OPTIONS} value={sortMode} onChange={setSortMode} />
+        <ChoiceBoxes options={STATUS_FILTER_OPTIONS} value={statusFilter} onChange={setStatusFilter} />
+      </div>
+
+      {tags.length > 0 && (
+        <div className="tag-color-picker">
+          {tags.map((tag) => {
+            const selected = tagFilter.includes(tag.id!);
+            return (
+              <button
+                key={tag.id}
+                type="button"
+                className={`tag-chip tag-chip-toggle${selected ? " selected" : ""}`}
+                style={{ background: `var(--${tag.color})` }}
+                onClick={() => toggleTagFilter(tag.id!)}
+              >
+                {tag.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {visibleJobs.length === 0 ? (
+        <div className="empty-state">
+          <p>No jobs match these filters.</p>
+        </div>
+      ) : (
+        <div className="job-cards">
+          {visibleJobs.map((job) => {
+            const overdue = isOverdue(job);
+            const outcome = job.leadOutcome;
+            const ticketNumber = extractTicketNumber(job.rawTicketText);
+            const customerName = extractCustomerName(job.rawTicketText);
+            return (
+              <div className="job-card" key={job.id}>
+                {customerName && <p className="job-card-customer">{customerName}</p>}
+                <div className="job-card-top">
+                  <div className="job-card-top-left">
+                    <button
+                      type="button"
+                      className={`status-tag ${job.status}${overdue ? " overdue" : ""}`}
+                      onClick={() => toggleStatus(job)}
+                    >
+                      {job.status === "done"
+                        ? `${STATUS_EMOJI.done} Job done`
+                        : overdue
+                          ? "⚠️ Overdue"
+                          : `${STATUS_EMOJI.awaiting} Job awaits`}
+                    </button>
+                    {ticketNumber && (
+                      <button type="button" className="job-number-chip" onClick={() => handleCopyNumber(job, ticketNumber)}>
+                        {copiedNumberId === job.id ? "Copied!" : `#${ticketNumber}`}
+                      </button>
+                    )}
+                    {outcome === "deposit" && <span className="deposit-badge">💰 Got Deposit</span>}
+                    {jobTotal(job) > 0 && balanceRemaining(job) <= 0 && (
+                      <span className="paid-off-badge">💸 Ready for payout</span>
+                    )}
+                  </div>
+                  <span className="job-card-total">${jobTotal(job).toFixed(2)}</span>
+                </div>
+
+                <dl className="job-card-details">
+                  <div>
+                    <dt>{job.status === "done" ? "Completed" : "Scheduled"}</dt>
+                    <dd>{job.status === "done" ? job.completedDate || "—" : job.scheduledDate || "TBD"}</dd>
+                  </div>
+                  <div>
+                    <dt>Paid</dt>
+                    <dd>
+                      {totalPaid(job) ? `$${totalPaid(job).toFixed(2)}` : "—"}
+                      {job.payments
+                        .filter((p) => p.amount && p.method)
+                        .map((p) => ` ${DEPOSIT_METHOD_EMOJI[p.method as Exclude<typeof p.method, "">]}`)
+                        .join("")}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Repair team</dt>
+                    <dd>{job.needsRepairTeam ? "Yes" : "No"}</dd>
+                  </div>
+                  <div>
+                    <dt>Tech profit</dt>
+                    <dd>${techProfit(job).toFixed(2)}</dd>
+                  </div>
+                  <div>
+                    <dt>Balance remaining</dt>
+                    <dd>${balanceRemaining(job).toFixed(2)}</dd>
+                  </div>
+                  <div>
+                    <dt>Outcome</dt>
+                    <dd>
+                      {LEAD_OUTCOME_EMOJI[outcome]} {LEAD_OUTCOME_LABEL[outcome]}
+                    </dd>
+                  </div>
+                </dl>
+
+                {cashOwedToCompany(job) > 0 && (
+                  <p className="cash-owed-callout">
+                    Tech collected cash — owes company ${cashOwedToCompany(job).toFixed(2)}
+                  </p>
+                )}
+
+                {totalPaid(job) > 0 && job.status === "awaiting" && (
+                  <button className="btn btn-primary btn-block" onClick={() => markDone(job)}>
+                    ✅ Job is done
                   </button>
                 )}
-                {outcome === "deposit" && <span className="deposit-badge">💰 Got Deposit</span>}
-                {jobTotal(job) > 0 && balanceRemaining(job) <= 0 && (
-                  <span className="paid-off-badge">💸 Ready for payout</span>
-                )}
-              </div>
-              <span className="job-card-total">${jobTotal(job).toFixed(2)}</span>
-            </div>
 
-            <dl className="job-card-details">
-              <div>
-                <dt>{job.status === "done" ? "Completed" : "Scheduled"}</dt>
-                <dd>{job.status === "done" ? job.completedDate || "—" : job.scheduledDate || "TBD"}</dd>
+                <div className="job-card-actions">
+                  <Link to={`/jobs/${job.id}/edit`} className="btn">
+                    Edit
+                  </Link>
+                  <button className="btn" onClick={() => handleCopy(job)}>
+                    {copiedId === job.id ? "Copied!" : "Copy"}
+                  </button>
+                  <button className="btn btn-danger" onClick={() => handleDelete(job)}>
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div>
-                <dt>Paid</dt>
-                <dd>
-                  {totalPaid(job) ? `$${totalPaid(job).toFixed(2)}` : "—"}
-                  {job.payments
-                    .filter((p) => p.amount && p.method)
-                    .map((p) => ` ${DEPOSIT_METHOD_EMOJI[p.method as Exclude<typeof p.method, "">]}`)
-                    .join("")}
-                </dd>
-              </div>
-              <div>
-                <dt>Repair team</dt>
-                <dd>{job.needsRepairTeam ? "Yes" : "No"}</dd>
-              </div>
-              <div>
-                <dt>Tech profit</dt>
-                <dd>${techProfit(job).toFixed(2)}</dd>
-              </div>
-              <div>
-                <dt>Balance remaining</dt>
-                <dd>${balanceRemaining(job).toFixed(2)}</dd>
-              </div>
-              <div>
-                <dt>Outcome</dt>
-                <dd>
-                  {LEAD_OUTCOME_EMOJI[outcome]} {LEAD_OUTCOME_LABEL[outcome]}
-                </dd>
-              </div>
-            </dl>
-
-            {cashOwedToCompany(job) > 0 && (
-              <p className="cash-owed-callout">
-                Tech collected cash — owes company ${cashOwedToCompany(job).toFixed(2)}
-              </p>
-            )}
-
-            {totalPaid(job) > 0 && job.status === "awaiting" && (
-              <button className="btn btn-primary btn-block" onClick={() => markDone(job)}>
-                ✅ Job is done
-              </button>
-            )}
-
-            <div className="job-card-actions">
-              <Link to={`/jobs/${job.id}/edit`} className="btn">
-                Edit
-              </Link>
-              <button className="btn" onClick={() => handleCopy(job)}>
-                {copiedId === job.id ? "Copied!" : "Copy"}
-              </button>
-              <button className="btn btn-danger" onClick={() => handleDelete(job)}>
-                Delete
-              </button>
-            </div>
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -99,10 +99,7 @@ function writeTags(tags: Tag[]) {
 
 function sortJobs(jobs: Job[]): Job[] {
   return [...jobs].sort((a, b) => {
-    if (!a.scheduledDate && !b.scheduledDate) return (b.id ?? 0) - (a.id ?? 0);
-    if (!a.scheduledDate) return 1;
-    if (!b.scheduledDate) return -1;
-    if (a.scheduledDate !== b.scheduledDate) return a.scheduledDate < b.scheduledDate ? -1 : 1;
+    if (a.loggedDate !== b.loggedDate) return a.loggedDate < b.loggedDate ? 1 : -1;
     return (b.id ?? 0) - (a.id ?? 0);
   });
 }

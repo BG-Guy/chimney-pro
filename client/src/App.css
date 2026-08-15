@@ -124,6 +124,18 @@
 
 /* Job cards (Jobs tab) */
 
+.job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.jobs-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .job-cards {
   display: flex;
   flex-direction: column;
