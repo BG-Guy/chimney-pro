@@ -32,6 +32,19 @@ function nowISO(): string {
   return new Date().toISOString().replace("T", " ").slice(0, 19);
 }
 
+// The tech gets paid out when a job is marked done, so that's the date worth tracking —
+// stamp it the moment status flips to "done", keep it if it's already done, clear it
+// if the job goes back to awaiting.
+function resolveCompletedDate(
+  prevStatus: JobStatus | undefined,
+  nextStatus: JobStatus,
+  prevCompletedDate: string | null
+): string | null {
+  if (nextStatus !== "done") return null;
+  if (prevStatus === "done" && prevCompletedDate) return prevCompletedDate;
+  return todayISO();
+}
+
 function readJobs(): Job[] {
   // Jobs saved before a field was added won't have it in storage; backfill defaults
   // (and migrate the old deposit* fields to paid*) so old records don't crash newer UI.
@@ -44,6 +57,8 @@ function readJobs(): Job[] {
       paidAmount: job.paidAmount ?? job.depositAmount ?? 0,
       paidMethod: job.paidMethod ?? job.depositMethod ?? "",
       paidDate: job.paidDate ?? job.depositDate ?? null,
+      completedDate:
+        job.completedDate ?? (job.status === "done" ? job.updatedAt?.slice(0, 10) ?? null : null),
     })
   );
 }
@@ -99,7 +114,13 @@ export const api = {
   async createJob(job: Job): Promise<Job> {
     const jobs = readJobs();
     const now = nowISO();
-    const created: Job = { ...job, id: nextId(JOBS_SEQ_KEY), createdAt: now, updatedAt: now };
+    const created: Job = {
+      ...job,
+      id: nextId(JOBS_SEQ_KEY),
+      completedDate: resolveCompletedDate(undefined, job.status, null),
+      createdAt: now,
+      updatedAt: now,
+    };
     jobs.push(created);
     writeJobs(jobs);
     return created;
@@ -109,7 +130,13 @@ export const api = {
     const jobs = readJobs();
     const idx = jobs.findIndex((j) => j.id === id);
     if (idx === -1) throw new Error("Job not found");
-    const updated: Job = { ...job, id, createdAt: jobs[idx].createdAt, updatedAt: nowISO() };
+    const updated: Job = {
+      ...job,
+      id,
+      completedDate: resolveCompletedDate(jobs[idx].status, job.status, jobs[idx].completedDate),
+      createdAt: jobs[idx].createdAt,
+      updatedAt: nowISO(),
+    };
     jobs[idx] = updated;
     writeJobs(jobs);
     return updated;
@@ -123,7 +150,13 @@ export const api = {
     const jobs = readJobs();
     const idx = jobs.findIndex((j) => j.id === id);
     if (idx === -1) throw new Error("Job not found");
-    jobs[idx] = { ...jobs[idx], status, updatedAt: nowISO() };
+    const prev = jobs[idx];
+    jobs[idx] = {
+      ...prev,
+      status,
+      completedDate: resolveCompletedDate(prev.status, status, prev.completedDate),
+      updatedAt: nowISO(),
+    };
     writeJobs(jobs);
     return jobs[idx];
   },

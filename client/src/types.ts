@@ -23,6 +23,7 @@ export interface Job {
   paidMethod: DepositMethod;
   paidDate: string | null;
   status: JobStatus;
+  completedDate: string | null;
   leadOutcome: LeadOutcome;
   tagIds: number[];
   createdAt?: string;
@@ -69,6 +70,7 @@ export function emptyJob(): Job {
     paidMethod: "",
     paidDate: null,
     status: "awaiting",
+    completedDate: null,
     leadOutcome: "estimate",
     tagIds: [],
   };

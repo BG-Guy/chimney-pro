@@ -106,7 +106,7 @@ export default function JobListPage() {
             <dl className="job-card-details">
               <div>
                 <dt>{job.status === "done" ? "Completed" : "Scheduled"}</dt>
-                <dd>{job.scheduledDate || "TBD"}</dd>
+                <dd>{job.status === "done" ? job.completedDate || "—" : job.scheduledDate || "TBD"}</dd>
               </div>
               <div>
                 <dt>Paid</dt>
