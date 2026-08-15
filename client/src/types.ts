@@ -88,21 +88,23 @@ export function ccFee(job: Job): number {
   return (Number(job.paidAmount) || 0) * CC_FEE_RATE;
 }
 
-// The job total has parts cost and the CC processing fee deducted from the items total —
-// both are costs, not something the tech's profit share should be calculated on.
+// The job total has the parts cost deducted from the items total (parts are a cost, not
+// something billed on top). It's what the customer actually owes — the CC fee is not part
+// of it, since that's an internal cost that only eats into the tech's profit split.
 export function jobTotal(job: Job): number {
-  return itemsTotal(job) - (Number(job.partsCost) || 0) - ccFee(job);
+  return itemsTotal(job) - (Number(job.partsCost) || 0);
 }
 
 export function balanceRemaining(job: Job): number {
   return jobTotal(job) - (Number(job.paidAmount) || 0);
 }
 
-// Tech profit is 25% of the job total (which already has parts cost and the CC fee deducted).
+// Tech profit is 25% of the job total, with the CC processing fee deducted first — same
+// treatment as parts cost, so the fee comes out of the shared pool, not the customer's balance.
 export const TECH_PROFIT_RATE = 0.25;
 
 export function techProfit(job: Job): number {
-  return jobTotal(job) * TECH_PROFIT_RATE;
+  return (jobTotal(job) - ccFee(job)) * TECH_PROFIT_RATE;
 }
 
 // When the customer pays cash, the tech physically holds the money and owes the company
