@@ -12,15 +12,16 @@ export interface PeriodMetrics {
   gasExpense: number;
 }
 
-// Jobs are bucketed into a period by scheduledDate (same convention as the rest of
-// Insights); gas expense is bucketed by the gas log's own date.
+// Jobs are bucketed into a period by loggedDate — when the job was actually entered,
+// not when the work is scheduled for (a job logged this week but scheduled for next
+// month should still count as this week's job). Gas expense is bucketed by its own date.
 export function computePeriodMetrics(
   jobs: Job[],
   gasLogs: GasLog[],
   startStr: string,
   endStr: string
 ): PeriodMetrics {
-  const periodJobs = jobs.filter((j) => inRange(j.scheduledDate, startStr, endStr));
+  const periodJobs = jobs.filter((j) => inRange(j.loggedDate, startStr, endStr));
   const jobCount = periodJobs.length;
   const revenue = periodJobs.reduce((sum, j) => sum + jobTotal(j), 0);
   const depositsWon = periodJobs.filter((j) => j.leadOutcome === "deposit").length;
@@ -96,7 +97,7 @@ export function computeInsights(jobs: Job[]): Insights {
     const wStartISO = fmtISO(wStart);
     const wEndISO = fmtISO(wEnd);
     const revenue = jobs
-      .filter((j) => inRange(j.scheduledDate, wStartISO, wEndISO))
+      .filter((j) => inRange(j.loggedDate, wStartISO, wEndISO))
       .reduce((sum, j) => sum + jobTotal(j), 0);
     weeklyTrend.push({ label: wStartISO, revenue });
   }

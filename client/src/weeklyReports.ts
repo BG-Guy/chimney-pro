@@ -40,7 +40,7 @@ export function buildWeeklyReport(jobs: Job[], gasLogs: GasLog[], weekStart: Dat
   const weekEndISO = fmtISO(weekEnd);
 
   const weekJobs: WeeklyReportJob[] = jobs
-    .filter((j) => inRange(j.scheduledDate, weekStartISO, weekEndISO))
+    .filter((j) => inRange(j.loggedDate, weekStartISO, weekEndISO))
     .map((j) => ({
       id: j.id!,
       customerName: extractCustomerName(j.rawTicketText),
