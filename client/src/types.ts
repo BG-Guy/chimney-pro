@@ -1,3 +1,5 @@
+import { todayISO } from "./dateUtils";
+
 export type DepositMethod = "CC" | "Check" | "Zelle" | "Cash" | "Other" | "";
 export type JobStatus = "awaiting" | "done";
 export type LeadOutcome = "estimate" | "deposit" | "no_estimate";
@@ -11,6 +13,7 @@ export interface JobItem {
 export interface Job {
   id?: number;
   rawTicketText: string;
+  loggedDate: string;
   items: JobItem[];
   partsCost: number;
   scheduledDate: string | null;
@@ -55,6 +58,7 @@ export const LEAD_OUTCOME_LABEL: Record<LeadOutcome, string> = {
 export function emptyJob(): Job {
   return {
     rawTicketText: "",
+    loggedDate: todayISO(),
     items: [{ description: "", cost: 0 }],
     partsCost: 0,
     scheduledDate: null,
@@ -72,17 +76,25 @@ export function itemsTotal(job: Job): number {
   return job.items.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
 }
 
-// The job total has the parts cost deducted from the items total (parts are a cost, not
-// something billed on top).
+// Credit card processing eats into the deposit, so CC-paid deposits carry a 3% surcharge.
+export const CC_FEE_RATE = 0.03;
+
+export function ccFee(job: Job): number {
+  if (job.depositMethod !== "CC") return 0;
+  return (Number(job.depositAmount) || 0) * CC_FEE_RATE;
+}
+
+// The job total has parts cost and the CC processing fee deducted from the items total —
+// both are costs, not something the tech's profit share should be calculated on.
 export function jobTotal(job: Job): number {
-  return itemsTotal(job) - (Number(job.partsCost) || 0);
+  return itemsTotal(job) - (Number(job.partsCost) || 0) - ccFee(job);
 }
 
 export function balanceRemaining(job: Job): number {
   return jobTotal(job) - (Number(job.depositAmount) || 0);
 }
 
-// Tech profit is 25% of the job total (which already has parts cost deducted).
+// Tech profit is 25% of the job total (which already has parts cost and the CC fee deducted).
 export const TECH_PROFIT_RATE = 0.25;
 
 export function techProfit(job: Job): number {

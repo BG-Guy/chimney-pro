@@ -8,6 +8,7 @@ import {
   LEAD_OUTCOME_LABEL,
   STATUS_EMOJI,
   cashOwedToCompany,
+  ccFee,
   emptyJob,
   itemsTotal,
   jobTotal,
@@ -128,6 +129,14 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
           value={job.rawTicketText}
           onChange={(e) => updateField("rawTicketText", e.target.value)}
           placeholder="Paste the raw job ticket text here..."
+        />
+      </label>
+
+      <label>
+        Date logged
+        <DateButton
+          value={job.loggedDate}
+          onChange={(v) => updateField("loggedDate", v || todayISO())}
         />
       </label>
 
@@ -254,6 +263,12 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
               deselectValue=""
             />
           </label>
+
+          {job.depositMethod === "CC" && job.depositAmount > 0 && (
+            <p className="cash-owed-callout">
+              +${ccFee(job).toFixed(2)} CC fee (3%) — charge ${(job.depositAmount + ccFee(job)).toFixed(2)} total
+            </p>
+          )}
         </>
       )}
 

@@ -1,4 +1,5 @@
 import type { GasLog, Job, JobStatus, Tag } from "./types";
+import { todayISO } from "./dateUtils";
 
 const JOBS_KEY = "chimneypro:jobs";
 const JOBS_SEQ_KEY = "chimneypro:jobs:seq";
@@ -32,7 +33,13 @@ function nowISO(): string {
 }
 
 function readJobs(): Job[] {
-  return read<Job[]>(JOBS_KEY, []);
+  // Jobs saved before a field was added (e.g. tagIds) won't have it in storage;
+  // backfill defaults so old records don't crash newer UI after an app update.
+  return read<Job[]>(JOBS_KEY, []).map((job) => ({
+    ...job,
+    tagIds: job.tagIds ?? [],
+    loggedDate: job.loggedDate ?? job.createdAt?.slice(0, 10) ?? todayISO(),
+  }));
 }
 
 function writeJobs(jobs: Job[]) {
