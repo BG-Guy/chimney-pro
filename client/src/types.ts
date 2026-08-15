@@ -114,6 +114,12 @@ export function techProfit(job: Job): number {
   return (jobTotal(job) - (Number(job.partsCost) || 0) - totalCcFee(job)) * TECH_PROFIT_RATE;
 }
 
+// A job's tech profit only actually goes out in payroll once the work is done AND the
+// customer has paid in full — not just marked done, and not just paid while still open.
+export function isReadyForPayroll(job: Job): boolean {
+  return job.status === "done" && balanceRemaining(job) <= 0;
+}
+
 // When the customer pays cash, the tech physically holds that cash and owes the company
 // everything except their standard profit cut on it.
 export function cashOwedToCompany(job: Job): number {

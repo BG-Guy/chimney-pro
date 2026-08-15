@@ -84,8 +84,13 @@ function PeriodComparisonCard({
         />
         <MetricRow
           label="Tech profit"
-          previous={formatCompactMoney(previous.techProfit)}
-          current={formatCompactMoney(current.techProfit)}
+          previous={formatCompactMoney(previous.techProfitRealized)}
+          current={formatCompactMoney(current.techProfitRealized)}
+        />
+        <MetricRow
+          label="Tech profit awaiting"
+          previous={formatCompactMoney(previous.techProfitAwaiting)}
+          current={formatCompactMoney(current.techProfitAwaiting)}
         />
         <MetricRow
           label="Avg ticket"
@@ -269,7 +274,8 @@ function QuickInsightsReport({ jobs, gasLogs }: { jobs: Job[]; gasLogs: GasLog[]
             <StatTile label="Jobs" value={String(report.metrics.jobCount)} />
             <StatTile label="Revenue" value={formatCompactMoney(report.metrics.revenue)} />
             <StatTile label="Parts cost" value={formatCompactMoney(report.metrics.partsCost)} />
-            <StatTile label="Tech profit" value={formatCompactMoney(report.metrics.techProfit)} />
+            <StatTile label="Tech profit" value={formatCompactMoney(report.metrics.techProfitRealized)} />
+            <StatTile label="Tech profit awaiting" value={formatCompactMoney(report.metrics.techProfitAwaiting)} />
             <StatTile label="Avg ticket" value={formatCompactMoney(report.metrics.avgTicket)} />
             <StatTile label="Closing rate" value={`${report.metrics.closingRate.toFixed(0)}%`} />
             <StatTile label="Repair team jobs" value={String(report.metrics.repairTeamCount)} />
@@ -329,7 +335,7 @@ function TechPayouts({ insights }: { insights: Insights }) {
     <div className="card">
       <div className="card-header">
         <h3>Tech payouts</h3>
-        <span className="card-caption">25% after parts</span>
+        <span className="card-caption">done & paid off, 25% after parts</span>
       </div>
       <div className="comparison-row">
         <div className="comparison-metric">

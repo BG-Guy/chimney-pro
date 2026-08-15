@@ -1,11 +1,21 @@
-import { cashOwedToCompany, jobTotal, techProfit, totalPaid, type DepositMethod, type GasLog, type Job } from "./types";
+import {
+  cashOwedToCompany,
+  isReadyForPayroll,
+  jobTotal,
+  techProfit,
+  totalPaid,
+  type DepositMethod,
+  type GasLog,
+  type Job,
+} from "./types";
 import { addDays, computeDateRanges, fmtISO, inRange } from "./dateUtils";
 
 export interface PeriodMetrics {
   jobCount: number;
   revenue: number;
   partsCost: number;
-  techProfit: number;
+  techProfitRealized: number;
+  techProfitAwaiting: number;
   avgTicket: number;
   closingRate: number;
   repairTeamCount: number;
@@ -15,6 +25,8 @@ export interface PeriodMetrics {
 // Jobs are bucketed into a period by loggedDate — when the job was actually entered,
 // not when the work is scheduled for (a job logged this week but scheduled for next
 // month should still count as this week's job). Gas expense is bucketed by its own date.
+// Tech profit only counts jobs that are done AND fully paid ("ready for payroll");
+// jobs still awaiting completion show up separately as pending profit.
 export function computePeriodMetrics(
   jobs: Job[],
   gasLogs: GasLog[],
@@ -30,7 +42,10 @@ export function computePeriodMetrics(
     jobCount,
     revenue,
     partsCost: periodJobs.reduce((sum, j) => sum + (Number(j.partsCost) || 0), 0),
-    techProfit: periodJobs.reduce((sum, j) => sum + techProfit(j), 0),
+    techProfitRealized: periodJobs.filter(isReadyForPayroll).reduce((sum, j) => sum + techProfit(j), 0),
+    techProfitAwaiting: periodJobs
+      .filter((j) => j.status === "awaiting")
+      .reduce((sum, j) => sum + techProfit(j), 0),
     avgTicket: jobCount ? revenue / jobCount : 0,
     closingRate: jobCount ? (depositsWon / jobCount) * 100 : 0,
     repairTeamCount: periodJobs.filter((j) => j.needsRepairTeam).length,
@@ -116,7 +131,7 @@ export function computeInsights(jobs: Job[]): Insights {
       : 0,
     paidMethodCounts,
     weeklyTrend,
-    totalTechProfit: jobs.reduce((sum, j) => sum + techProfit(j), 0),
+    totalTechProfit: jobs.filter(isReadyForPayroll).reduce((sum, j) => sum + techProfit(j), 0),
     totalCashOwed: jobs.reduce((sum, j) => sum + cashOwedToCompany(j), 0),
     dueThisWeekCount,
     repairTeamPendingCount,

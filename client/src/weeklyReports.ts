@@ -94,7 +94,7 @@ function weeklyReportCsv(report: WeeklyReport): string {
     "",
     report.metrics.revenue.toFixed(2),
     report.metrics.partsCost.toFixed(2),
-    report.metrics.techProfit.toFixed(2),
+    report.metrics.techProfitRealized.toFixed(2),
     report.totals.paid.toFixed(2),
     "",
     report.totals.balance.toFixed(2),
