@@ -93,9 +93,10 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload: Job = job.paid
-        ? { ...job, paidDate: job.paidDate || todayISO() }
-        : { ...job, paidAmount: 0, paidMethod: "", paidDate: null };
+      const paid = job.paidAmount > 0;
+      const payload: Job = paid
+        ? { ...job, paid, paidDate: job.paidDate || todayISO() }
+        : { ...job, paid, paidMethod: "", paidDate: null };
 
       if (mode === "new") {
         await api.createJob(payload);
@@ -160,6 +161,44 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         </button>
         <p className="subtotal">Items subtotal: ${itemsTotal(job).toFixed(2)}</p>
       </fieldset>
+
+      <label>
+        How much paid
+        <div className="paid-amount-row">
+          <input
+            type="number"
+            step="0.01"
+            inputMode="decimal"
+            placeholder="0.00"
+            value={job.paidAmount || ""}
+            onChange={(e) => updateField("paidAmount", Number(e.target.value) || 0)}
+          />
+          <button
+            type="button"
+            className="btn"
+            onClick={() => updateField("paidAmount", Math.max(0, jobTotal(job)))}
+          >
+            All of balance
+          </button>
+        </div>
+      </label>
+
+      <label>
+        Paid by
+        <ChoiceBoxes
+          options={PAID_METHOD_OPTIONS}
+          value={job.paidMethod}
+          onChange={(v) => updateField("paidMethod", v)}
+          allowDeselect
+          deselectValue=""
+        />
+      </label>
+
+      {job.paidMethod === "CC" && job.paidAmount > 0 && (
+        <p className="cash-owed-callout">
+          +${ccFee(job).toFixed(2)} CC fee (3%) — charge ${(job.paidAmount + ccFee(job)).toFixed(2)} total
+        </p>
+      )}
 
       <label>
         Parts cost
@@ -230,60 +269,6 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
           onChange={(v) => updateField("leadOutcome", v)}
         />
       </label>
-
-      <label>
-        Payment
-        <button
-          type="button"
-          className={`choice-box${job.paid ? " selected" : ""}`}
-          onClick={() => updateField("paid", !job.paid)}
-        >
-          <span className="choice-emoji">💵</span>
-          <span className="choice-label">Paid by</span>
-        </button>
-      </label>
-
-      {job.paid && (
-        <>
-          <label>
-            How much
-            <div className="paid-amount-row">
-              <input
-                type="number"
-                step="0.01"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={job.paidAmount || ""}
-                onChange={(e) => updateField("paidAmount", Number(e.target.value) || 0)}
-              />
-              <button
-                type="button"
-                className="btn"
-                onClick={() => updateField("paidAmount", Math.max(0, jobTotal(job)))}
-              >
-                All of balance
-              </button>
-            </div>
-          </label>
-
-          <label>
-            Paid by
-            <ChoiceBoxes
-              options={PAID_METHOD_OPTIONS}
-              value={job.paidMethod}
-              onChange={(v) => updateField("paidMethod", v)}
-              allowDeselect
-              deselectValue=""
-            />
-          </label>
-
-          {job.paidMethod === "CC" && job.paidAmount > 0 && (
-            <p className="cash-owed-callout">
-              +${ccFee(job).toFixed(2)} CC fee (3%) — charge ${(job.paidAmount + ccFee(job)).toFixed(2)} total
-            </p>
-          )}
-        </>
-      )}
 
       <div className="form-actions">
         <button type="submit" className="btn btn-primary" disabled={saving}>
