@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { computeInsights, pctDelta, type Insights } from "../insights";
 import { computeGasInsights, type GasInsights } from "../gasInsights";
+import { computeWeeklyReports, downloadWeeklyReportCsv, type WeeklyReport } from "../weeklyReports";
 import { DEPOSIT_METHOD_EMOJI, type GasLog, type Job } from "../types";
 
 function formatCompactMoney(n: number): string {
@@ -206,6 +207,94 @@ function PaidMethods({ counts }: { counts: Insights["paidMethodCounts"] }) {
   );
 }
 
+function WeeklyReports({ reports }: { reports: WeeklyReport[] }) {
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <h3>Weekly reports</h3>
+      </div>
+      <div className="week-report-list">
+        {reports.map((report) => {
+          const isOpen = expandedKey === report.key;
+          return (
+            <div className="week-report" key={report.key}>
+              <button
+                type="button"
+                className="week-report-row"
+                onClick={() => setExpandedKey(isOpen ? null : report.key)}
+              >
+                <span className="week-report-info">
+                  <span className="week-report-title">{report.label}</span>
+                  <span className="week-report-dates">{report.dateRange}</span>
+                </span>
+                <span className="week-report-jobcount">
+                  {report.jobs.length} job{report.jobs.length === 1 ? "" : "s"}
+                </span>
+              </button>
+
+              {isOpen && (
+                <div className="week-report-detail">
+                  {report.jobs.length === 0 ? (
+                    <p className="empty-hint">No jobs scheduled this week.</p>
+                  ) : (
+                    <>
+                      <div className="week-report-jobs">
+                        {report.jobs.map((j) => (
+                          <div className="week-report-job" key={j.id}>
+                            <div className="week-report-job-top">
+                              <span>
+                                #{j.id}
+                                {j.customerName ? ` · ${j.customerName}` : ""}
+                              </span>
+                              <span>${j.total.toFixed(2)}</span>
+                            </div>
+                            <dl className="job-card-details">
+                              <div>
+                                <dt>Parts</dt>
+                                <dd>${j.partsCost.toFixed(2)}</dd>
+                              </div>
+                              <div>
+                                <dt>Tech profit</dt>
+                                <dd>${j.techProfit.toFixed(2)}</dd>
+                              </div>
+                              <div>
+                                <dt>Paid</dt>
+                                <dd>
+                                  ${j.paid.toFixed(2)}
+                                  {j.paidMethods ? ` (${j.paidMethods})` : ""}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt>Balance</dt>
+                                <dd>${j.balance.toFixed(2)}</dd>
+                              </div>
+                            </dl>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="subtotal">
+                        Totals — Revenue ${report.totals.total.toFixed(2)} · Parts $
+                        {report.totals.partsCost.toFixed(2)} · Tech profit $
+                        {report.totals.techProfit.toFixed(2)} · Paid ${report.totals.paid.toFixed(2)} · Balance $
+                        {report.totals.balance.toFixed(2)}
+                      </p>
+                    </>
+                  )}
+                  <button type="button" className="btn" onClick={() => downloadWeeklyReportCsv(report)}>
+                    ⬇️ Export CSV
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TechPayouts({ insights }: { insights: Insights }) {
   return (
     <div className="card">
@@ -236,6 +325,8 @@ export default function InsightsPage() {
     api.listJobs().then(setJobs);
     api.listGasLogs().then(setGasLogs);
   }, []);
+
+  const weeklyReports = useMemo(() => computeWeeklyReports(jobs ?? []), [jobs]);
 
   if (!jobs || !gasLogs) return <p className="loading-text">Loading insights...</p>;
 
@@ -271,6 +362,8 @@ export default function InsightsPage() {
 
           <ComparisonCard title="This week" caption="vs last week" current={insights.thisWeek} previous={insights.lastWeek} />
           <ComparisonCard title="This month" caption="vs last month" current={insights.thisMonth} previous={insights.lastMonth} />
+
+          <WeeklyReports reports={weeklyReports} />
 
           <div className="card">
             <div className="card-header">

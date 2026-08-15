@@ -742,6 +742,84 @@ legend {
   color: var(--text-muted);
 }
 
+/* Weekly reports */
+
+.week-report-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.week-report-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.week-report-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.week-report-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.week-report-dates {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.week-report-jobcount {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.week-report-detail {
+  padding: 6px 2px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.week-report-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.week-report-job {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.week-report-job-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
 /* Settings / tags */
 
 .settings-page {
