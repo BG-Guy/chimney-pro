@@ -1,7 +1,7 @@
 export function extractCustomerName(rawTicketText: string): string | null {
-  const firstLine = rawTicketText
+  const lines = rawTicketText
     .split("\n")
     .map((line) => line.trim())
-    .find((line) => line.length > 0);
-  return firstLine || null;
+    .filter((line) => line.length > 0);
+  return lines[1] || null;
 }
