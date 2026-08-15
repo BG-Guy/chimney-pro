@@ -15,6 +15,7 @@ import {
 } from "../types";
 import { formatTicketText } from "../formatTicket";
 import { extractTicketNumber } from "../ticketNumber";
+import { extractCustomerName } from "../customerName";
 
 function isOverdue(job: Job): boolean {
   if (job.status !== "awaiting" || !job.scheduledDate) return false;
@@ -83,8 +84,10 @@ export default function JobListPage() {
         const overdue = isOverdue(job);
         const outcome = job.leadOutcome;
         const ticketNumber = extractTicketNumber(job.rawTicketText);
+        const customerName = extractCustomerName(job.rawTicketText);
         return (
           <div className="job-card" key={job.id}>
+            {customerName && <p className="job-card-customer">{customerName}</p>}
             <div className="job-card-top">
               <div className="job-card-top-left">
                 <button

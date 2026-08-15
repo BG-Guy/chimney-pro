@@ -140,6 +140,12 @@
   gap: 10px;
 }
 
+.job-card-customer {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
 .job-card-top {
   display: flex;
   justify-content: space-between;
