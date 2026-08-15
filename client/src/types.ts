@@ -18,9 +18,10 @@ export interface Job {
   partsCost: number;
   scheduledDate: string | null;
   needsRepairTeam: boolean;
-  depositAmount: number;
-  depositMethod: DepositMethod;
-  depositDate: string | null;
+  paid: boolean;
+  paidAmount: number;
+  paidMethod: DepositMethod;
+  paidDate: string | null;
   status: JobStatus;
   leadOutcome: LeadOutcome;
   tagIds: number[];
@@ -63,9 +64,10 @@ export function emptyJob(): Job {
     partsCost: 0,
     scheduledDate: null,
     needsRepairTeam: false,
-    depositAmount: 0,
-    depositMethod: "",
-    depositDate: null,
+    paid: false,
+    paidAmount: 0,
+    paidMethod: "",
+    paidDate: null,
     status: "awaiting",
     leadOutcome: "estimate",
     tagIds: [],
@@ -76,12 +78,12 @@ export function itemsTotal(job: Job): number {
   return job.items.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
 }
 
-// Credit card processing eats into the deposit, so CC-paid deposits carry a 3% surcharge.
+// Credit card processing eats into the payment, so CC-paid amounts carry a 3% surcharge.
 export const CC_FEE_RATE = 0.03;
 
 export function ccFee(job: Job): number {
-  if (job.depositMethod !== "CC") return 0;
-  return (Number(job.depositAmount) || 0) * CC_FEE_RATE;
+  if (job.paidMethod !== "CC") return 0;
+  return (Number(job.paidAmount) || 0) * CC_FEE_RATE;
 }
 
 // The job total has parts cost and the CC processing fee deducted from the items total —
@@ -91,7 +93,7 @@ export function jobTotal(job: Job): number {
 }
 
 export function balanceRemaining(job: Job): number {
-  return jobTotal(job) - (Number(job.depositAmount) || 0);
+  return jobTotal(job) - (Number(job.paidAmount) || 0);
 }
 
 // Tech profit is 25% of the job total (which already has parts cost and the CC fee deducted).
@@ -104,7 +106,7 @@ export function techProfit(job: Job): number {
 // When the customer pays cash, the tech physically holds the money and owes the company
 // everything except their own profit cut.
 export function cashOwedToCompany(job: Job): number {
-  if (job.depositMethod !== "Cash") return 0;
+  if (job.paidMethod !== "Cash") return 0;
   return jobTotal(job) - techProfit(job);
 }
 

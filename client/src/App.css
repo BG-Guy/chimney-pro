@@ -150,8 +150,22 @@
 .job-card-top-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
+}
+
+.deposit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--series-4);
+  color: #fff;
+  flex-shrink: 0;
 }
 
 .job-number-chip {
@@ -380,6 +394,22 @@ legend {
 .item-row input[type="number"] {
   flex: 1;
   min-width: 0;
+}
+
+.paid-amount-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.paid-amount-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.paid-amount-row .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .subtotal,

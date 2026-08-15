@@ -164,7 +164,7 @@ const METHOD_SLOTS: Record<string, string> = {
   Other: "var(--series-5)",
 };
 
-function DepositMethods({ counts }: { counts: Insights["depositMethodCounts"] }) {
+function PaidMethods({ counts }: { counts: Insights["paidMethodCounts"] }) {
   const entries = Object.entries(counts) as [string, number][];
   const total = entries.reduce((sum, [, c]) => sum + c, 0);
 
@@ -172,9 +172,9 @@ function DepositMethods({ counts }: { counts: Insights["depositMethodCounts"] })
     return (
       <div className="card">
         <div className="card-header">
-          <h3>Deposit methods</h3>
+          <h3>Payment methods</h3>
         </div>
-        <p className="empty-hint">No deposits recorded yet.</p>
+        <p className="empty-hint">No payments recorded yet.</p>
       </div>
     );
   }
@@ -182,7 +182,7 @@ function DepositMethods({ counts }: { counts: Insights["depositMethodCounts"] })
   return (
     <div className="card">
       <div className="card-header">
-        <h3>Deposit methods</h3>
+        <h3>Payment methods</h3>
       </div>
       <div className="method-bars">
         {entries
@@ -299,9 +299,9 @@ export default function InsightsPage() {
 
           <Meter label="Repair team jobs" pct={insights.repairTeamPct} sub="of all jobs" />
 
-          <DepositMethods counts={insights.depositMethodCounts} />
+          <PaidMethods counts={insights.paidMethodCounts} />
 
-          <StatTile label="Avg deposit" value={formatMoney(insights.avgDeposit)} sub="among jobs with a deposit" />
+          <StatTile label="Avg payment" value={formatMoney(insights.avgPaid)} sub="among paid jobs" />
         </>
       )}
 

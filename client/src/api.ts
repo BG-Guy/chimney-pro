@@ -33,13 +33,19 @@ function nowISO(): string {
 }
 
 function readJobs(): Job[] {
-  // Jobs saved before a field was added (e.g. tagIds) won't have it in storage;
-  // backfill defaults so old records don't crash newer UI after an app update.
-  return read<Job[]>(JOBS_KEY, []).map((job) => ({
-    ...job,
-    tagIds: job.tagIds ?? [],
-    loggedDate: job.loggedDate ?? job.createdAt?.slice(0, 10) ?? todayISO(),
-  }));
+  // Jobs saved before a field was added won't have it in storage; backfill defaults
+  // (and migrate the old deposit* fields to paid*) so old records don't crash newer UI.
+  return read<any[]>(JOBS_KEY, []).map(
+    (job): Job => ({
+      ...job,
+      tagIds: job.tagIds ?? [],
+      loggedDate: job.loggedDate ?? job.createdAt?.slice(0, 10) ?? todayISO(),
+      paid: job.paid ?? (job.paidAmount ?? job.depositAmount ?? 0) > 0,
+      paidAmount: job.paidAmount ?? job.depositAmount ?? 0,
+      paidMethod: job.paidMethod ?? job.depositMethod ?? "",
+      paidDate: job.paidDate ?? job.depositDate ?? null,
+    })
+  );
 }
 
 function writeJobs(jobs: Job[]) {

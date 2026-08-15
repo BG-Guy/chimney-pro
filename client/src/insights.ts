@@ -28,8 +28,8 @@ export interface Insights {
   awaitingCount: number;
   overdueCount: number;
   repairTeamPct: number;
-  avgDeposit: number;
-  depositMethodCounts: Partial<Record<DepositMethod, number>>;
+  avgPaid: number;
+  paidMethodCounts: Partial<Record<DepositMethod, number>>;
   thisWeek: Period;
   lastWeek: Period;
   thisMonth: Period;
@@ -44,7 +44,8 @@ export function computeInsights(jobs: Job[]): Insights {
     computeDateRanges();
 
   const totalJobs = jobs.length;
-  const jobsWithDeposit = jobs.filter((j) => j.depositAmount > 0);
+  const depositsWon = jobs.filter((j) => j.leadOutcome === "deposit");
+  const jobsPaid = jobs.filter((j) => j.paid && j.paidAmount > 0);
   const totalRevenue = jobs.reduce((sum, j) => sum + jobTotal(j), 0);
   const doneCount = jobs.filter((j) => j.status === "done").length;
   const awaitingCount = totalJobs - doneCount;
@@ -53,10 +54,10 @@ export function computeInsights(jobs: Job[]): Insights {
   ).length;
   const repairTeamCount = jobs.filter((j) => j.needsRepairTeam).length;
 
-  const depositMethodCounts: Partial<Record<DepositMethod, number>> = {};
+  const paidMethodCounts: Partial<Record<DepositMethod, number>> = {};
   for (const j of jobs) {
-    if (!j.depositMethod) continue;
-    depositMethodCounts[j.depositMethod] = (depositMethodCounts[j.depositMethod] ?? 0) + 1;
+    if (!j.paidMethod) continue;
+    paidMethodCounts[j.paidMethod] = (paidMethodCounts[j.paidMethod] ?? 0) + 1;
   }
 
   const weeklyTrend: WeekPoint[] = [];
@@ -69,17 +70,17 @@ export function computeInsights(jobs: Job[]): Insights {
 
   return {
     totalJobs,
-    closingRate: totalJobs ? (jobsWithDeposit.length / totalJobs) * 100 : 0,
+    closingRate: totalJobs ? (depositsWon.length / totalJobs) * 100 : 0,
     avgTicket: totalJobs ? totalRevenue / totalJobs : 0,
     totalRevenue,
     doneCount,
     awaitingCount,
     overdueCount,
     repairTeamPct: totalJobs ? (repairTeamCount / totalJobs) * 100 : 0,
-    avgDeposit: jobsWithDeposit.length
-      ? jobsWithDeposit.reduce((sum, j) => sum + j.depositAmount, 0) / jobsWithDeposit.length
+    avgPaid: jobsPaid.length
+      ? jobsPaid.reduce((sum, j) => sum + j.paidAmount, 0) / jobsPaid.length
       : 0,
-    depositMethodCounts,
+    paidMethodCounts,
     thisWeek: summarizePeriod(jobs, fmtISO(weekStart), fmtISO(weekEnd)),
     lastWeek: summarizePeriod(jobs, fmtISO(lastWeekStart), fmtISO(lastWeekEnd)),
     thisMonth: summarizePeriod(jobs, fmtISO(monthStart), fmtISO(monthEnd)),

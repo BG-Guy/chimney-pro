@@ -80,7 +80,7 @@ export default function JobListPage() {
     <div className="job-cards">
       {jobs.map((job) => {
         const overdue = isOverdue(job);
-        const outcome = job.leadOutcome ?? (job.depositAmount > 0 ? "deposit" : "estimate");
+        const outcome = job.leadOutcome;
         const ticketNumber = extractTicketNumber(job.rawTicketText);
         return (
           <div className="job-card" key={job.id}>
@@ -98,6 +98,7 @@ export default function JobListPage() {
                     {copiedNumberId === job.id ? "Copied!" : `#${ticketNumber}`}
                   </button>
                 )}
+                {outcome === "deposit" && <span className="deposit-badge">💰 Got Deposit</span>}
               </div>
               <span className="job-card-total">${jobTotal(job).toFixed(2)}</span>
             </div>
@@ -108,15 +109,15 @@ export default function JobListPage() {
                 <dd>{job.scheduledDate || "TBD"}</dd>
               </div>
               <div>
-                <dt>Deposit</dt>
+                <dt>Paid</dt>
                 <dd>
-                  {job.depositAmount ? `$${job.depositAmount.toFixed(2)}` : "—"}
-                  {job.depositMethod ? ` (${DEPOSIT_METHOD_EMOJI[job.depositMethod]} ${job.depositMethod})` : ""}
+                  {job.paidAmount ? `$${job.paidAmount.toFixed(2)}` : "—"}
+                  {job.paidMethod ? ` (${DEPOSIT_METHOD_EMOJI[job.paidMethod]} ${job.paidMethod})` : ""}
                 </dd>
               </div>
               <div>
-                <dt>Deposit date</dt>
-                <dd>{job.depositDate || "—"}</dd>
+                <dt>Paid date</dt>
+                <dd>{job.paidDate || "—"}</dd>
               </div>
               <div>
                 <dt>Repair team</dt>
@@ -144,7 +145,7 @@ export default function JobListPage() {
               </p>
             )}
 
-            {job.depositAmount > 0 && job.status === "awaiting" && (
+            {job.paid && job.status === "awaiting" && (
               <button className="btn btn-primary btn-block" onClick={() => markDone(job)}>
                 ✅ Job is done
               </button>

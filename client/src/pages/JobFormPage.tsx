@@ -26,20 +26,15 @@ const STATUS_OPTIONS: Choice<Job["status"]>[] = [
   { value: "done", label: "Done", emoji: STATUS_EMOJI.done },
 ];
 
-const DEPOSIT_METHOD_OPTIONS: Choice<Job["depositMethod"]>[] = DEPOSIT_METHODS.map((m) => ({
+const PAID_METHOD_OPTIONS: Choice<Job["paidMethod"]>[] = DEPOSIT_METHODS.map((m) => ({
   value: m,
   label: m,
-  emoji: DEPOSIT_METHOD_EMOJI[m as Exclude<Job["depositMethod"], "">],
+  emoji: DEPOSIT_METHOD_EMOJI[m as Exclude<Job["paidMethod"], "">],
 }));
 
 const LEAD_OUTCOME_OPTIONS: Choice<LeadOutcome>[] = (["estimate", "deposit", "no_estimate"] as LeadOutcome[]).map(
   (v) => ({ value: v, label: LEAD_OUTCOME_LABEL[v], emoji: LEAD_OUTCOME_EMOJI[v] })
 );
-
-function inferLeadOutcome(job: Job): LeadOutcome {
-  if (job.leadOutcome) return job.leadOutcome;
-  return job.depositAmount > 0 ? "deposit" : "estimate";
-}
 
 export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
   const { id } = useParams();
@@ -48,15 +43,12 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
-  const depositMade = job.leadOutcome === "deposit";
 
   useEffect(() => {
     if (mode === "edit" && id) {
       api
         .getJob(Number(id))
-        .then((loaded) => {
-          setJob({ ...loaded, leadOutcome: inferLeadOutcome(loaded) });
-        })
+        .then((loaded) => setJob(loaded))
         .finally(() => setLoading(false));
     }
   }, [mode, id]);
@@ -101,9 +93,9 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
     e.preventDefault();
     setSaving(true);
     try {
-      const payload: Job = depositMade
-        ? { ...job, depositDate: job.depositDate || todayISO() }
-        : { ...job, depositAmount: 0, depositMethod: "", depositDate: null };
+      const payload: Job = job.paid
+        ? { ...job, paidDate: job.paidDate || todayISO() }
+        : { ...job, paidAmount: 0, paidMethod: "", paidDate: null };
 
       if (mode === "new") {
         await api.createJob(payload);
@@ -239,34 +231,55 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         />
       </label>
 
-      {depositMade && (
+      <label>
+        Payment
+        <button
+          type="button"
+          className={`choice-box${job.paid ? " selected" : ""}`}
+          onClick={() => updateField("paid", !job.paid)}
+        >
+          <span className="choice-emoji">💵</span>
+          <span className="choice-label">Paid by</span>
+        </button>
+      </label>
+
+      {job.paid && (
         <>
           <label>
             How much
-            <input
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              placeholder="0.00"
-              value={job.depositAmount || ""}
-              onChange={(e) => updateField("depositAmount", Number(e.target.value) || 0)}
-            />
+            <div className="paid-amount-row">
+              <input
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={job.paidAmount || ""}
+                onChange={(e) => updateField("paidAmount", Number(e.target.value) || 0)}
+              />
+              <button
+                type="button"
+                className="btn"
+                onClick={() => updateField("paidAmount", Math.max(0, jobTotal(job)))}
+              >
+                All of balance
+              </button>
+            </div>
           </label>
 
           <label>
-            Deposit method
+            Paid by
             <ChoiceBoxes
-              options={DEPOSIT_METHOD_OPTIONS}
-              value={job.depositMethod}
-              onChange={(v) => updateField("depositMethod", v)}
+              options={PAID_METHOD_OPTIONS}
+              value={job.paidMethod}
+              onChange={(v) => updateField("paidMethod", v)}
               allowDeselect
               deselectValue=""
             />
           </label>
 
-          {job.depositMethod === "CC" && job.depositAmount > 0 && (
+          {job.paidMethod === "CC" && job.paidAmount > 0 && (
             <p className="cash-owed-callout">
-              +${ccFee(job).toFixed(2)} CC fee (3%) — charge ${(job.depositAmount + ccFee(job)).toFixed(2)} total
+              +${ccFee(job).toFixed(2)} CC fee (3%) — charge ${(job.paidAmount + ccFee(job)).toFixed(2)} total
             </p>
           )}
         </>

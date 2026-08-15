@@ -25,8 +25,8 @@ export function formatTicketText(job: Job): string {
   lines.push(`${job.status === "done" ? "Completed" : "Scheduled"} date: ${job.scheduledDate || "TBD"}`);
   lines.push(`Repair team needed: ${job.needsRepairTeam ? "Yes" : "No"}`);
   lines.push("");
-  lines.push(`Deposit: ${money(job.depositAmount)}${job.depositMethod ? ` (${job.depositMethod})` : ""}`);
-  if (job.depositDate) lines.push(`Deposit date: ${job.depositDate}`);
+  lines.push(`Paid: ${money(job.paidAmount)}${job.paidMethod ? ` (${job.paidMethod})` : ""}`);
+  if (job.paidDate) lines.push(`Paid date: ${job.paidDate}`);
 
   return lines.join("\n");
 }
