@@ -37,6 +37,9 @@ export interface Insights {
   weeklyTrend: WeekPoint[];
   totalTechProfit: number;
   totalCashOwed: number;
+  dueThisWeekCount: number;
+  repairTeamPendingCount: number;
+  pendingTechProfit: number;
 }
 
 export function computeInsights(jobs: Job[]): Insights {
@@ -53,6 +56,12 @@ export function computeInsights(jobs: Job[]): Insights {
     (j) => j.status === "awaiting" && j.scheduledDate && j.scheduledDate < todayStr
   ).length;
   const repairTeamCount = jobs.filter((j) => j.needsRepairTeam).length;
+  const awaitingJobs = jobs.filter((j) => j.status === "awaiting");
+  const dueThisWeekCount = awaitingJobs.filter((j) =>
+    inRange(j.scheduledDate, fmtISO(weekStart), fmtISO(weekEnd))
+  ).length;
+  const repairTeamPendingCount = awaitingJobs.filter((j) => j.needsRepairTeam).length;
+  const pendingTechProfit = awaitingJobs.reduce((sum, j) => sum + techProfit(j), 0);
 
   const paidMethodCounts: Partial<Record<DepositMethod, number>> = {};
   for (const j of jobs) {
@@ -90,6 +99,9 @@ export function computeInsights(jobs: Job[]): Insights {
     weeklyTrend,
     totalTechProfit: jobs.reduce((sum, j) => sum + techProfit(j), 0),
     totalCashOwed: jobs.reduce((sum, j) => sum + cashOwedToCompany(j), 0),
+    dueThisWeekCount,
+    repairTeamPendingCount,
+    pendingTechProfit,
   };
 }
 

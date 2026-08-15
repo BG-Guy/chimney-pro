@@ -295,6 +295,17 @@ export default function InsightsPage() {
             )}
           </div>
 
+          <div className="stat-grid">
+            <StatTile label="Due this week" value={String(insights.dueThisWeekCount)} sub="awaiting jobs" />
+            <StatTile label="Repair team pending" value={String(insights.repairTeamPendingCount)} sub="awaiting jobs" />
+          </div>
+
+          <StatTile
+            label="Pending payout"
+            value={formatMoney(insights.pendingTechProfit)}
+            sub="tech profit once these jobs are marked done"
+          />
+
           <TechPayouts insights={insights} />
 
           <Meter label="Repair team jobs" pct={insights.repairTeamPct} sub="of all jobs" />
