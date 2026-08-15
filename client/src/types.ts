@@ -10,6 +10,13 @@ export interface JobItem {
   cost: number;
 }
 
+export interface Payment {
+  id?: number;
+  amount: number;
+  method: DepositMethod;
+  date: string | null;
+}
+
 export interface Job {
   id?: number;
   rawTicketText: string;
@@ -18,10 +25,7 @@ export interface Job {
   partsCost: number;
   scheduledDate: string | null;
   needsRepairTeam: boolean;
-  paid: boolean;
-  paidAmount: number;
-  paidMethod: DepositMethod;
-  paidDate: string | null;
+  payments: Payment[];
   status: JobStatus;
   completedDate: string | null;
   leadOutcome: LeadOutcome;
@@ -65,10 +69,7 @@ export function emptyJob(): Job {
     partsCost: 0,
     scheduledDate: null,
     needsRepairTeam: false,
-    paid: false,
-    paidAmount: 0,
-    paidMethod: "",
-    paidDate: null,
+    payments: [],
     status: "awaiting",
     completedDate: null,
     leadOutcome: "estimate",
@@ -80,12 +81,18 @@ export function itemsTotal(job: Job): number {
   return job.items.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
 }
 
-// Credit card processing eats into the payment, so CC-paid amounts carry a 3% surcharge.
+export function totalPaid(job: Job): number {
+  return job.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+}
+
+// Credit card processing eats into each CC-paid payment, so those carry a 3% surcharge.
 export const CC_FEE_RATE = 0.03;
 
-export function ccFee(job: Job): number {
-  if (job.paidMethod !== "CC") return 0;
-  return (Number(job.paidAmount) || 0) * CC_FEE_RATE;
+export function totalCcFee(job: Job): number {
+  return job.payments.reduce(
+    (sum, p) => sum + (p.method === "CC" ? (Number(p.amount) || 0) * CC_FEE_RATE : 0),
+    0
+  );
 }
 
 // The job total has the parts cost deducted from the items total (parts are a cost, not
@@ -96,7 +103,7 @@ export function jobTotal(job: Job): number {
 }
 
 export function balanceRemaining(job: Job): number {
-  return jobTotal(job) - (Number(job.paidAmount) || 0);
+  return jobTotal(job) - totalPaid(job);
 }
 
 // Tech profit is 25% of the job total, with the CC processing fee deducted first — same
@@ -104,14 +111,15 @@ export function balanceRemaining(job: Job): number {
 export const TECH_PROFIT_RATE = 0.25;
 
 export function techProfit(job: Job): number {
-  return (jobTotal(job) - ccFee(job)) * TECH_PROFIT_RATE;
+  return (jobTotal(job) - totalCcFee(job)) * TECH_PROFIT_RATE;
 }
 
-// When the customer pays cash, the tech physically holds the money and owes the company
-// everything except their own profit cut.
+// When the customer pays cash, the tech physically holds that cash and owes the company
+// everything except their standard profit cut on it.
 export function cashOwedToCompany(job: Job): number {
-  if (job.paidMethod !== "Cash") return 0;
-  return jobTotal(job) - techProfit(job);
+  return job.payments
+    .filter((p) => p.method === "Cash")
+    .reduce((sum, p) => sum + (Number(p.amount) || 0) * (1 - TECH_PROFIT_RATE), 0);
 }
 
 export interface GasLog {

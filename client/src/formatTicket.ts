@@ -1,4 +1,4 @@
-import { itemsTotal, jobTotal, type Job } from "./types";
+import { itemsTotal, jobTotal, totalPaid, type Job } from "./types";
 
 function money(n: number): string {
   return `$${(Number(n) || 0).toFixed(2)}`;
@@ -22,11 +22,18 @@ export function formatTicketText(job: Job): string {
   lines.push(`Total: ${money(jobTotal(job))}`);
   lines.push("");
   lines.push(`Status: ${job.status === "done" ? "Job done" : "Job awaits"}`);
-  lines.push(`${job.status === "done" ? "Completed" : "Scheduled"} date: ${job.scheduledDate || "TBD"}`);
+  lines.push(
+    job.status === "done"
+      ? `Completed date: ${job.completedDate || "—"}`
+      : `Scheduled date: ${job.scheduledDate || "TBD"}`
+  );
   lines.push(`Repair team needed: ${job.needsRepairTeam ? "Yes" : "No"}`);
   lines.push("");
-  lines.push(`Paid: ${money(job.paidAmount)}${job.paidMethod ? ` (${job.paidMethod})` : ""}`);
-  if (job.paidDate) lines.push(`Paid date: ${job.paidDate}`);
+  lines.push(`Paid total: ${money(totalPaid(job))}`);
+  for (const p of job.payments) {
+    if (!p.amount) continue;
+    lines.push(`  - ${money(p.amount)}${p.method ? ` (${p.method})` : ""}`);
+  }
 
   return lines.join("\n");
 }

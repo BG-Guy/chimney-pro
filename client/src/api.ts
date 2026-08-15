@@ -1,4 +1,4 @@
-import type { GasLog, Job, JobStatus, Tag } from "./types";
+import type { GasLog, Job, JobStatus, Payment, Tag } from "./types";
 import { todayISO } from "./dateUtils";
 
 const JOBS_KEY = "chimneypro:jobs";
@@ -33,34 +33,48 @@ function nowISO(): string {
 }
 
 // The tech gets paid out when a job is marked done, so that's the date worth tracking —
-// stamp it the moment status flips to "done", keep it if it's already done, clear it
-// if the job goes back to awaiting.
+// stamp it the moment status flips to "done" (or keep a manually-edited date), and clear
+// it if the job goes back to awaiting.
 function resolveCompletedDate(
   prevStatus: JobStatus | undefined,
   nextStatus: JobStatus,
-  prevCompletedDate: string | null
+  prevCompletedDate: string | null,
+  submittedCompletedDate: string | null = null
 ): string | null {
   if (nextStatus !== "done") return null;
+  if (submittedCompletedDate) return submittedCompletedDate;
   if (prevStatus === "done" && prevCompletedDate) return prevCompletedDate;
   return todayISO();
 }
 
+// A payment with no date means "today, whenever this gets saved" — stamp any still-blank
+// dates at save time rather than leaving them null forever.
+function resolvePayments(payments: Payment[]): Payment[] {
+  return payments.map((p) => ({ ...p, date: p.date || todayISO() }));
+}
+
 function readJobs(): Job[] {
   // Jobs saved before a field was added won't have it in storage; backfill defaults
-  // (and migrate the old deposit* fields to paid*) so old records don't crash newer UI.
-  return read<any[]>(JOBS_KEY, []).map(
-    (job): Job => ({
+  // (and migrate the old single paid*/deposit* fields into a payments list) so old
+  // records don't crash newer UI.
+  return read<any[]>(JOBS_KEY, []).map((job): Job => {
+    const legacyAmount = job.paidAmount ?? job.depositAmount ?? 0;
+    const legacyMethod = job.paidMethod ?? job.depositMethod ?? "";
+    const legacyDate = job.paidDate ?? job.depositDate ?? null;
+    const payments: Payment[] = job.payments
+      ? job.payments.map((p: any) => ({ ...p, date: p.date ?? null }))
+      : legacyAmount > 0
+        ? [{ amount: legacyAmount, method: legacyMethod, date: legacyDate }]
+        : [];
+    return {
       ...job,
       tagIds: job.tagIds ?? [],
       loggedDate: job.loggedDate ?? job.createdAt?.slice(0, 10) ?? todayISO(),
-      paid: job.paid ?? (job.paidAmount ?? job.depositAmount ?? 0) > 0,
-      paidAmount: job.paidAmount ?? job.depositAmount ?? 0,
-      paidMethod: job.paidMethod ?? job.depositMethod ?? "",
-      paidDate: job.paidDate ?? job.depositDate ?? null,
+      payments,
       completedDate:
         job.completedDate ?? (job.status === "done" ? job.updatedAt?.slice(0, 10) ?? null : null),
-    })
-  );
+    };
+  });
 }
 
 function writeJobs(jobs: Job[]) {
@@ -117,7 +131,8 @@ export const api = {
     const created: Job = {
       ...job,
       id: nextId(JOBS_SEQ_KEY),
-      completedDate: resolveCompletedDate(undefined, job.status, null),
+      payments: resolvePayments(job.payments),
+      completedDate: resolveCompletedDate(undefined, job.status, null, job.completedDate),
       createdAt: now,
       updatedAt: now,
     };
@@ -133,7 +148,8 @@ export const api = {
     const updated: Job = {
       ...job,
       id,
-      completedDate: resolveCompletedDate(jobs[idx].status, job.status, jobs[idx].completedDate),
+      payments: resolvePayments(job.payments),
+      completedDate: resolveCompletedDate(jobs[idx].status, job.status, jobs[idx].completedDate, job.completedDate),
       createdAt: jobs[idx].createdAt,
       updatedAt: nowISO(),
     };

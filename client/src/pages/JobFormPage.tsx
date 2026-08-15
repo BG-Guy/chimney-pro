@@ -2,17 +2,20 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import {
+  CC_FEE_RATE,
   DEPOSIT_METHODS,
   DEPOSIT_METHOD_EMOJI,
   LEAD_OUTCOME_EMOJI,
   LEAD_OUTCOME_LABEL,
   STATUS_EMOJI,
+  balanceRemaining,
   cashOwedToCompany,
-  ccFee,
   emptyJob,
   itemsTotal,
   jobTotal,
   techProfit,
+  totalPaid,
+  type DepositMethod,
   type Job,
   type LeadOutcome,
   type Tag,
@@ -26,10 +29,10 @@ const STATUS_OPTIONS: Choice<Job["status"]>[] = [
   { value: "done", label: "Done", emoji: STATUS_EMOJI.done },
 ];
 
-const PAID_METHOD_OPTIONS: Choice<Job["paidMethod"]>[] = DEPOSIT_METHODS.map((m) => ({
+const PAID_METHOD_OPTIONS: Choice<DepositMethod>[] = DEPOSIT_METHODS.map((m) => ({
   value: m,
   label: m,
-  emoji: DEPOSIT_METHOD_EMOJI[m as Exclude<Job["paidMethod"], "">],
+  emoji: DEPOSIT_METHOD_EMOJI[m as Exclude<DepositMethod, "">],
 }));
 
 const LEAD_OUTCOME_OPTIONS: Choice<LeadOutcome>[] = (["estimate", "deposit", "no_estimate"] as LeadOutcome[]).map(
@@ -89,19 +92,53 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
     setJob((prev) => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
   }
 
+  function updatePayment(index: number, field: "amount" | "method", value: string) {
+    setJob((prev) => {
+      const payments = [...prev.payments];
+      payments[index] = {
+        ...payments[index],
+        [field]: field === "amount" ? Number(value) || 0 : (value as DepositMethod),
+      };
+      return { ...prev, payments };
+    });
+  }
+
+  function updatePaymentDate(index: number, value: string | null) {
+    setJob((prev) => {
+      const payments = [...prev.payments];
+      payments[index] = { ...payments[index], date: value };
+      return { ...prev, payments };
+    });
+  }
+
+  function addPayment() {
+    setJob((prev) => ({ ...prev, payments: [...prev.payments, { amount: 0, method: "", date: null }] }));
+  }
+
+  function removePayment(index: number) {
+    setJob((prev) => ({ ...prev, payments: prev.payments.filter((_, i) => i !== index) }));
+  }
+
+  function fillAllOfBalance(index: number) {
+    setJob((prev) => {
+      const others = prev.payments.reduce(
+        (sum, p, i) => (i === index ? sum : sum + (Number(p.amount) || 0)),
+        0
+      );
+      const payments = [...prev.payments];
+      payments[index] = { ...payments[index], amount: Math.max(0, jobTotal(prev) - others) };
+      return { ...prev, payments };
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     try {
-      const paid = job.paidAmount > 0;
-      const payload: Job = paid
-        ? { ...job, paid, paidDate: job.paidDate || todayISO() }
-        : { ...job, paid, paidMethod: "", paidDate: null };
-
       if (mode === "new") {
-        await api.createJob(payload);
+        await api.createJob(job);
       } else {
-        await api.updateJob(Number(id), payload);
+        await api.updateJob(Number(id), job);
       }
       navigate("/jobs");
     } finally {
@@ -162,43 +199,50 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         <p className="subtotal">Items subtotal: ${itemsTotal(job).toFixed(2)}</p>
       </fieldset>
 
-      <label>
-        How much paid
-        <div className="paid-amount-row">
-          <input
-            type="number"
-            step="0.01"
-            inputMode="decimal"
-            placeholder="0.00"
-            value={job.paidAmount || ""}
-            onChange={(e) => updateField("paidAmount", Number(e.target.value) || 0)}
-          />
-          <button
-            type="button"
-            className="btn"
-            onClick={() => updateField("paidAmount", Math.max(0, jobTotal(job)))}
-          >
-            All of balance
-          </button>
-        </div>
-      </label>
-
-      <label>
-        Paid by
-        <ChoiceBoxes
-          options={PAID_METHOD_OPTIONS}
-          value={job.paidMethod}
-          onChange={(v) => updateField("paidMethod", v)}
-          allowDeselect
-          deselectValue=""
-        />
-      </label>
-
-      {job.paidMethod === "CC" && job.paidAmount > 0 && (
-        <p className="cash-owed-callout">
-          +${ccFee(job).toFixed(2)} CC fee (3%) — charge ${(job.paidAmount + ccFee(job)).toFixed(2)} total
-        </p>
-      )}
+      <fieldset>
+        <legend>Payments</legend>
+        {job.payments.map((payment, index) => (
+          <div className="payment-row" key={index}>
+            <div className="paid-amount-row">
+              <input
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={payment.amount || ""}
+                onChange={(e) => updatePayment(index, "amount", e.target.value)}
+              />
+              <button type="button" className="btn" onClick={() => fillAllOfBalance(index)}>
+                All of balance
+              </button>
+            </div>
+            <ChoiceBoxes
+              options={PAID_METHOD_OPTIONS}
+              value={payment.method}
+              onChange={(v) => updatePayment(index, "method", v)}
+              allowDeselect
+              deselectValue=""
+            />
+            <DateButton
+              value={payment.date}
+              onChange={(v) => updatePaymentDate(index, v)}
+              placeholder="Date paid (defaults to today)"
+            />
+            {payment.method === "CC" && payment.amount > 0 && (
+              <p className="cash-owed-callout">
+                +${(payment.amount * CC_FEE_RATE).toFixed(2)} CC fee (3%) on this payment
+              </p>
+            )}
+            <button type="button" className="btn btn-danger" onClick={() => removePayment(index)}>
+              Remove payment
+            </button>
+          </div>
+        ))}
+        <button type="button" className="btn" onClick={addPayment}>
+          + Add payment
+        </button>
+        <p className="subtotal">Total paid: ${totalPaid(job).toFixed(2)}</p>
+      </fieldset>
 
       <label>
         Parts cost
@@ -213,6 +257,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
       </label>
 
       <p className="total">Total job cost: ${jobTotal(job).toFixed(2)}</p>
+      <p className="subtotal">Balance remaining: ${balanceRemaining(job).toFixed(2)}</p>
       <p className="subtotal">Tech profit (25% after parts): ${techProfit(job).toFixed(2)}</p>
       {cashOwedToCompany(job) > 0 && (
         <p className="cash-owed-callout">
@@ -259,6 +304,14 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
       <label>
         Job status
         <ChoiceBoxes options={STATUS_OPTIONS} value={job.status} onChange={(v) => updateField("status", v)} />
+      </label>
+
+      <label>
+        Date job was completed
+        <DateButton
+          value={job.completedDate}
+          onChange={(v) => updateField("completedDate", v || todayISO())}
+        />
       </label>
 
       <label>

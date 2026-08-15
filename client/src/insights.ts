@@ -1,4 +1,4 @@
-import { cashOwedToCompany, jobTotal, techProfit, type DepositMethod, type Job } from "./types";
+import { cashOwedToCompany, jobTotal, techProfit, totalPaid, type DepositMethod, type Job } from "./types";
 import { addDays, computeDateRanges, fmtISO, inRange } from "./dateUtils";
 
 interface Period {
@@ -45,7 +45,7 @@ export function computeInsights(jobs: Job[]): Insights {
 
   const totalJobs = jobs.length;
   const depositsWon = jobs.filter((j) => j.leadOutcome === "deposit");
-  const jobsPaid = jobs.filter((j) => j.paid && j.paidAmount > 0);
+  const jobsPaid = jobs.filter((j) => totalPaid(j) > 0);
   const totalRevenue = jobs.reduce((sum, j) => sum + jobTotal(j), 0);
   const doneCount = jobs.filter((j) => j.status === "done").length;
   const awaitingCount = totalJobs - doneCount;
@@ -56,8 +56,10 @@ export function computeInsights(jobs: Job[]): Insights {
 
   const paidMethodCounts: Partial<Record<DepositMethod, number>> = {};
   for (const j of jobs) {
-    if (!j.paidMethod) continue;
-    paidMethodCounts[j.paidMethod] = (paidMethodCounts[j.paidMethod] ?? 0) + 1;
+    for (const p of j.payments) {
+      if (!p.method || !p.amount) continue;
+      paidMethodCounts[p.method] = (paidMethodCounts[p.method] ?? 0) + 1;
+    }
   }
 
   const weeklyTrend: WeekPoint[] = [];
@@ -78,7 +80,7 @@ export function computeInsights(jobs: Job[]): Insights {
     overdueCount,
     repairTeamPct: totalJobs ? (repairTeamCount / totalJobs) * 100 : 0,
     avgPaid: jobsPaid.length
-      ? jobsPaid.reduce((sum, j) => sum + j.paidAmount, 0) / jobsPaid.length
+      ? jobsPaid.reduce((sum, j) => sum + totalPaid(j), 0) / jobsPaid.length
       : 0,
     paidMethodCounts,
     thisWeek: summarizePeriod(jobs, fmtISO(weekStart), fmtISO(weekEnd)),

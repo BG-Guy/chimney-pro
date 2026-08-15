@@ -10,6 +10,7 @@ import {
   cashOwedToCompany,
   jobTotal,
   techProfit,
+  totalPaid,
   type Job,
 } from "../types";
 import { formatTicketText } from "../formatTicket";
@@ -99,6 +100,9 @@ export default function JobListPage() {
                   </button>
                 )}
                 {outcome === "deposit" && <span className="deposit-badge">💰 Got Deposit</span>}
+                {jobTotal(job) > 0 && balanceRemaining(job) <= 0 && (
+                  <span className="paid-off-badge">💸 Ready for payout</span>
+                )}
               </div>
               <span className="job-card-total">${jobTotal(job).toFixed(2)}</span>
             </div>
@@ -111,13 +115,12 @@ export default function JobListPage() {
               <div>
                 <dt>Paid</dt>
                 <dd>
-                  {job.paidAmount ? `$${job.paidAmount.toFixed(2)}` : "—"}
-                  {job.paidMethod ? ` (${DEPOSIT_METHOD_EMOJI[job.paidMethod]} ${job.paidMethod})` : ""}
+                  {totalPaid(job) ? `$${totalPaid(job).toFixed(2)}` : "—"}
+                  {job.payments
+                    .filter((p) => p.amount && p.method)
+                    .map((p) => ` ${DEPOSIT_METHOD_EMOJI[p.method as Exclude<typeof p.method, "">]}`)
+                    .join("")}
                 </dd>
-              </div>
-              <div>
-                <dt>Paid date</dt>
-                <dd>{job.paidDate || "—"}</dd>
               </div>
               <div>
                 <dt>Repair team</dt>
@@ -145,7 +148,7 @@ export default function JobListPage() {
               </p>
             )}
 
-            {job.paid && job.status === "awaiting" && (
+            {totalPaid(job) > 0 && job.status === "awaiting" && (
               <button className="btn btn-primary btn-block" onClick={() => markDone(job)}>
                 ✅ Job is done
               </button>
