@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { computeInsights, computePeriodMetrics, pctDelta, type Insights, type PeriodMetrics } from "../insights";
+import { computeInsights, computePeriodMetrics, type Insights, type PeriodMetrics } from "../insights";
 import { computeGasInsights, type GasInsights } from "../gasInsights";
 import { buildWeeklyReport, downloadWeeklyReportCsv } from "../weeklyReports";
 import {
@@ -25,19 +25,6 @@ function formatMoney(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-function DeltaBadge({ value, upIsGood = true }: { value: number | null; upIsGood?: boolean }) {
-  if (value === null) return <span className="delta delta-neutral">new</span>;
-  const rounded = Math.round(value);
-  if (rounded === 0) return <span className="delta delta-neutral">flat</span>;
-  const isUp = rounded > 0;
-  const isGood = isUp === upIsGood;
-  return (
-    <span className={`delta ${isGood ? "delta-up" : "delta-down"}`}>
-      {isUp ? "▲" : "▼"} {Math.abs(rounded)}%
-    </span>
-  );
-}
-
 function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="stat-tile">
@@ -48,34 +35,27 @@ function StatTile({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-function MetricRow({
-  label,
-  value,
-  delta,
-  upIsGood = true,
-}: {
-  label: string;
-  value: string;
-  delta: number | null;
-  upIsGood?: boolean;
-}) {
+function MetricRow({ label, previous, current }: { label: string; previous: string; current: string }) {
   return (
     <div className="metric-row">
       <span className="metric-row-label">{label}</span>
-      <span className="metric-row-value">{value}</span>
-      <DeltaBadge value={delta} upIsGood={upIsGood} />
+      <span className="metric-row-previous">{previous}</span>
+      <span className="metric-row-arrow">→</span>
+      <span className="metric-row-current">{current}</span>
     </div>
   );
 }
 
 function PeriodComparisonCard({
   title,
-  caption,
+  previousLabel,
+  currentLabel,
   current,
   previous,
 }: {
   title: string;
-  caption: string;
+  previousLabel: string;
+  currentLabel: string;
   current: PeriodMetrics;
   previous: PeriodMetrics;
 }) {
@@ -83,46 +63,49 @@ function PeriodComparisonCard({
     <div className="card">
       <div className="card-header">
         <h3>{title}</h3>
-        <span className="card-caption">{caption}</span>
+      </div>
+      <div className="metric-row metric-row-header">
+        <span className="metric-row-label" />
+        <span className="metric-row-previous">{previousLabel}</span>
+        <span className="metric-row-arrow" />
+        <span className="metric-row-current">{currentLabel}</span>
       </div>
       <div className="metric-rows">
-        <MetricRow label="Jobs" value={String(current.jobCount)} delta={pctDelta(current.jobCount, previous.jobCount)} />
+        <MetricRow label="Jobs" previous={String(previous.jobCount)} current={String(current.jobCount)} />
         <MetricRow
           label="Revenue"
-          value={formatCompactMoney(current.revenue)}
-          delta={pctDelta(current.revenue, previous.revenue)}
+          previous={formatCompactMoney(previous.revenue)}
+          current={formatCompactMoney(current.revenue)}
         />
         <MetricRow
           label="Parts cost"
-          value={formatCompactMoney(current.partsCost)}
-          delta={pctDelta(current.partsCost, previous.partsCost)}
-          upIsGood={false}
+          previous={formatCompactMoney(previous.partsCost)}
+          current={formatCompactMoney(current.partsCost)}
         />
         <MetricRow
           label="Tech profit"
-          value={formatCompactMoney(current.techProfit)}
-          delta={pctDelta(current.techProfit, previous.techProfit)}
+          previous={formatCompactMoney(previous.techProfit)}
+          current={formatCompactMoney(current.techProfit)}
         />
         <MetricRow
           label="Avg ticket"
-          value={formatCompactMoney(current.avgTicket)}
-          delta={pctDelta(current.avgTicket, previous.avgTicket)}
+          previous={formatCompactMoney(previous.avgTicket)}
+          current={formatCompactMoney(current.avgTicket)}
         />
         <MetricRow
           label="Closing rate"
-          value={`${current.closingRate.toFixed(0)}%`}
-          delta={pctDelta(current.closingRate, previous.closingRate)}
+          previous={`${previous.closingRate.toFixed(0)}%`}
+          current={`${current.closingRate.toFixed(0)}%`}
         />
         <MetricRow
           label="Repair team jobs"
-          value={String(current.repairTeamCount)}
-          delta={pctDelta(current.repairTeamCount, previous.repairTeamCount)}
+          previous={String(previous.repairTeamCount)}
+          current={String(current.repairTeamCount)}
         />
         <MetricRow
           label="Gas expense"
-          value={formatCompactMoney(current.gasExpense)}
-          delta={pctDelta(current.gasExpense, previous.gasExpense)}
-          upIsGood={false}
+          previous={formatCompactMoney(previous.gasExpense)}
+          current={formatCompactMoney(current.gasExpense)}
         />
       </div>
     </div>
@@ -403,13 +386,15 @@ export default function InsightsPage() {
     <div className="insights">
       <PeriodComparisonCard
         title="This week"
-        caption="vs last week"
+        previousLabel="Last week"
+        currentLabel="This week"
         current={periodMetrics.thisWeek}
         previous={periodMetrics.lastWeek}
       />
       <PeriodComparisonCard
         title="This month"
-        caption="vs last month"
+        previousLabel="Last month"
+        currentLabel="This month"
         current={periodMetrics.thisMonth}
         previous={periodMetrics.lastMonth}
       />

@@ -625,8 +625,22 @@ legend {
 .metric-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+}
+
+.metric-row-header {
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
+.metric-row-header .metric-row-previous,
+.metric-row-header .metric-row-current {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
 }
 
 .metric-row-label {
@@ -635,27 +649,24 @@ legend {
   color: var(--text-secondary);
 }
 
-.metric-row-value {
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.delta {
-  font-size: 0.72rem;
-  font-weight: 600;
-  width: fit-content;
-}
-
-.delta-up {
-  color: var(--good-text);
-}
-
-.delta-down {
-  color: var(--critical);
-}
-
-.delta-neutral {
+.metric-row-previous {
+  min-width: 48px;
+  text-align: right;
+  font-size: 0.82rem;
   color: var(--text-muted);
+}
+
+.metric-row-arrow {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.metric-row-current {
+  min-width: 48px;
+  text-align: right;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .sparkline {
