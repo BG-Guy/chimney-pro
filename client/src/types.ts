@@ -20,6 +20,7 @@ export interface Job {
   depositDate: string | null;
   status: JobStatus;
   leadOutcome: LeadOutcome;
+  tagIds: number[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -63,6 +64,7 @@ export function emptyJob(): Job {
     depositDate: null,
     status: "awaiting",
     leadOutcome: "estimate",
+    tagIds: [],
   };
 }
 
@@ -100,3 +102,24 @@ export interface GasLog {
   date: string;
   createdAt?: string;
 }
+
+export interface Tag {
+  id?: number;
+  name: string;
+  color: TagColor;
+}
+
+// Keys into the --series-* CSS custom properties (see index.css), so tag colors adapt
+// automatically between light and dark mode instead of being fixed hex values.
+export type TagColor = "series-1" | "series-2" | "series-3" | "series-4" | "series-5" | "series-6" | "series-7" | "series-8";
+
+export const TAG_COLORS: { key: TagColor; name: string }[] = [
+  { key: "series-1", name: "Blue" },
+  { key: "series-2", name: "Orange" },
+  { key: "series-3", name: "Aqua" },
+  { key: "series-4", name: "Yellow" },
+  { key: "series-5", name: "Magenta" },
+  { key: "series-6", name: "Green" },
+  { key: "series-7", name: "Violet" },
+  { key: "series-8", name: "Red" },
+];

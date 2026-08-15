@@ -1,9 +1,11 @@
-import type { GasLog, Job, JobStatus } from "./types";
+import type { GasLog, Job, JobStatus, Tag } from "./types";
 
 const JOBS_KEY = "chimneypro:jobs";
 const JOBS_SEQ_KEY = "chimneypro:jobs:seq";
 const GAS_KEY = "chimneypro:gas";
 const GAS_SEQ_KEY = "chimneypro:gas:seq";
+const TAGS_KEY = "chimneypro:tags";
+const TAGS_SEQ_KEY = "chimneypro:tags:seq";
 
 function read<T>(key: string, fallback: T): T {
   const raw = localStorage.getItem(key);
@@ -43,6 +45,14 @@ function readGas(): GasLog[] {
 
 function writeGas(logs: GasLog[]) {
   write(GAS_KEY, logs);
+}
+
+function readTags(): Tag[] {
+  return read<Tag[]>(TAGS_KEY, []);
+}
+
+function writeTags(tags: Tag[]) {
+  write(TAGS_KEY, tags);
 }
 
 function sortJobs(jobs: Job[]): Job[] {
@@ -119,5 +129,21 @@ export const api = {
 
   async deleteGasLog(id: number): Promise<void> {
     writeGas(readGas().filter((l) => l.id !== id));
+  },
+
+  async listTags(): Promise<Tag[]> {
+    return readTags();
+  },
+
+  async createTag(tag: Tag): Promise<Tag> {
+    const tags = readTags();
+    const created: Tag = { ...tag, id: nextId(TAGS_SEQ_KEY) };
+    tags.push(created);
+    writeTags(tags);
+    return created;
+  },
+
+  async deleteTag(id: number): Promise<void> {
+    writeTags(readTags().filter((t) => t.id !== id));
   },
 };

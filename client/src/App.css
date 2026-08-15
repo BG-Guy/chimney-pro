@@ -664,6 +664,78 @@ legend {
   color: var(--text-muted);
 }
 
+/* Settings / tags */
+
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tag-color-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tag-swatch.selected {
+  border-color: var(--text-primary);
+}
+
+.tag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.tag-row .btn {
+  min-height: 32px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  border: none;
+}
+
+.tag-chip-toggle {
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+
+.tag-chip-toggle.selected {
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--text-primary);
+}
+
 /* Shared states */
 
 .empty-state {

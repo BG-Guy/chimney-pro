@@ -1,11 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { PlusCircleIcon, ChartIcon, ListIcon, FuelIcon } from "./icons";
+import { PlusCircleIcon, ChartIcon, ListIcon, FuelIcon, SettingsIcon } from "./icons";
 
 const TABS = [
   { to: "/gas", label: "Gas", icon: FuelIcon },
   { to: "/new", label: "New Job", icon: PlusCircleIcon },
   { to: "/insights", label: "Insights", icon: ChartIcon },
   { to: "/jobs", label: "Jobs", icon: ListIcon },
+  { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
 export default function BottomNav() {

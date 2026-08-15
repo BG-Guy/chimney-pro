@@ -14,6 +14,7 @@ import {
   techProfit,
   type Job,
   type LeadOutcome,
+  type Tag,
 } from "../types";
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import DateButton from "../components/DateButton";
@@ -45,6 +46,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
   const [job, setJob] = useState<Job>(emptyJob());
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
+  const [tags, setTags] = useState<Tag[]>([]);
   const depositMade = job.leadOutcome === "deposit";
 
   useEffect(() => {
@@ -57,6 +59,19 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         .finally(() => setLoading(false));
     }
   }, [mode, id]);
+
+  useEffect(() => {
+    api.listTags().then(setTags);
+  }, []);
+
+  function toggleTag(tagId: number) {
+    setJob((prev) => ({
+      ...prev,
+      tagIds: prev.tagIds.includes(tagId)
+        ? prev.tagIds.filter((t) => t !== tagId)
+        : [...prev.tagIds, tagId],
+    }));
+  }
 
   function updateField<K extends keyof Job>(key: K, value: Job[K]) {
     setJob((prev) => ({ ...prev, [key]: value }));
@@ -178,6 +193,28 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         />
         Needs repair team
       </label>
+
+      {tags.length > 0 && (
+        <label>
+          Tags
+          <div className="tag-color-picker">
+            {tags.map((tag) => {
+              const selected = job.tagIds.includes(tag.id!);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className={`tag-chip tag-chip-toggle${selected ? " selected" : ""}`}
+                  style={{ background: `var(--${tag.color})` }}
+                  onClick={() => toggleTag(tag.id!)}
+                >
+                  {tag.name}
+                </button>
+              );
+            })}
+          </div>
+        </label>
+      )}
 
       <label>
         Job status
