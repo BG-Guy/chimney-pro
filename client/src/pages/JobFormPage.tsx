@@ -131,6 +131,15 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
     });
   }
 
+  async function handlePasteTicket() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) updateField("rawTicketText", text);
+    } catch {
+      alert("Couldn't read the clipboard. Your browser may need permission, or there's nothing copied.");
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -161,6 +170,9 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
           placeholder="Paste the raw job ticket text here..."
         />
       </label>
+      <button type="button" className="btn" onClick={handlePasteTicket}>
+        📋 Paste from clipboard
+      </button>
 
       <label>
         Date logged
