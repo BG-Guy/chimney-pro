@@ -95,23 +95,23 @@ export function totalCcFee(job: Job): number {
   );
 }
 
-// The job total has the parts cost deducted from the items total (parts are a cost, not
-// something billed on top). It's what the customer actually owes — the CC fee is not part
-// of it, since that's an internal cost that only eats into the tech's profit split.
+// The job total is just the items total — it's what the customer actually owes. Parts cost
+// and the CC fee are internal costs that only eat into the tech's profit split below; they
+// never reduce what the customer is billed or their balance.
 export function jobTotal(job: Job): number {
-  return itemsTotal(job) - (Number(job.partsCost) || 0);
+  return itemsTotal(job);
 }
 
 export function balanceRemaining(job: Job): number {
   return jobTotal(job) - totalPaid(job);
 }
 
-// Tech profit is 25% of the job total, with the CC processing fee deducted first — same
-// treatment as parts cost, so the fee comes out of the shared pool, not the customer's balance.
+// Tech profit is 25% of the job total, with parts cost and the CC processing fee deducted
+// first — both come out of the shared pool, not the customer's balance.
 export const TECH_PROFIT_RATE = 0.25;
 
 export function techProfit(job: Job): number {
-  return (jobTotal(job) - totalCcFee(job)) * TECH_PROFIT_RATE;
+  return (jobTotal(job) - (Number(job.partsCost) || 0) - totalCcFee(job)) * TECH_PROFIT_RATE;
 }
 
 // When the customer pays cash, the tech physically holds that cash and owes the company
