@@ -10,7 +10,7 @@ import {
   weeksOfMonth,
   type MonthOption,
 } from "../dateBuckets";
-import { computeDateRanges, fmtISO } from "../dateUtils";
+import { addDays, computeDateRanges, fmtISO } from "../dateUtils";
 import MonthWeekPicker from "../components/MonthWeekPicker";
 import { DEPOSIT_METHOD_EMOJI, type GasLog, type Job } from "../types";
 
@@ -364,9 +364,14 @@ export default function InsightsPage() {
   const periodMetrics = useMemo(() => {
     const j = jobs ?? [];
     const g = gasLogs ?? [];
-    const { weekStart, weekEnd, lastWeekStart, lastWeekEnd, monthStart, monthEnd, lastMonthStart, lastMonthEnd } =
+    const { todayStr, weekStart, weekEnd, lastWeekStart, lastWeekEnd, monthStart, monthEnd, lastMonthStart, lastMonthEnd } =
       computeDateRanges();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterdayStr = fmtISO(addDays(today, -1));
     return {
+      today: computePeriodMetrics(j, g, todayStr, todayStr),
+      yesterday: computePeriodMetrics(j, g, yesterdayStr, yesterdayStr),
       thisWeek: computePeriodMetrics(j, g, fmtISO(weekStart), fmtISO(weekEnd)),
       lastWeek: computePeriodMetrics(j, g, fmtISO(lastWeekStart), fmtISO(lastWeekEnd)),
       thisMonth: computePeriodMetrics(j, g, fmtISO(monthStart), fmtISO(monthEnd)),
@@ -390,6 +395,14 @@ export default function InsightsPage() {
 
   return (
     <div className="insights">
+      <PeriodComparisonCard
+        title="Today"
+        previousLabel="Yesterday"
+        currentLabel="Today"
+        current={periodMetrics.today}
+        previous={periodMetrics.yesterday}
+      />
+
       <PeriodComparisonCard
         title="This week"
         previousLabel="Last week"
