@@ -130,6 +130,16 @@
   gap: 14px;
 }
 
+.job-search-input {
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 1rem;
+}
+
 .jobs-toolbar {
   display: flex;
   flex-direction: column;

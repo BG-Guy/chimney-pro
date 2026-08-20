@@ -73,3 +73,10 @@ export function currentWeekOfMonthN(year: number, month: number): number {
   const match = weeks.find((w) => todayISO >= w.weekStartISO && todayISO <= w.weekEndISO);
   return match ? match.n : (weeks[weeks.length - 1]?.n ?? 1);
 }
+
+export function monthRangeISO(year: number, month: number): { startISO: string; endISO: string } {
+  return {
+    startISO: fmtISO(new Date(year, month, 1)),
+    endISO: fmtISO(new Date(year, month + 1, 0)),
+  };
+}

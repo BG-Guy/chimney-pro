@@ -20,8 +20,16 @@ import { extractTicketNumber } from "../ticketNumber";
 import { extractCustomerName } from "../customerName";
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import MonthWeekPicker from "../components/MonthWeekPicker";
-import { currentMonthOption, currentWeekOfMonthN, recentMonths, weeksOfMonth, type MonthOption } from "../dateBuckets";
+import {
+  currentMonthOption,
+  currentWeekOfMonthN,
+  monthRangeISO,
+  recentMonths,
+  weeksOfMonth,
+  type MonthOption,
+} from "../dateBuckets";
 import { inRange } from "../dateUtils";
+import { downloadJobsCsv } from "../jobsCsv";
 
 function formatDateRange(start: Date, end: Date): string {
   const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -47,6 +55,13 @@ const STATUS_FILTER_OPTIONS: Choice<JobStatus | "all">[] = [
   { value: "all", label: "All", emoji: "📋" },
   { value: "awaiting", label: "Awaits", emoji: STATUS_EMOJI.awaiting },
   { value: "done", label: "Done", emoji: STATUS_EMOJI.done },
+];
+
+type PaycheckMode = "week" | "month";
+
+const PAYCHECK_MODE_OPTIONS: Choice<PaycheckMode>[] = [
+  { value: "week", label: "Week", emoji: "📅" },
+  { value: "month", label: "Month", emoji: "🗓️" },
 ];
 
 function sortJobsBy(jobs: Job[], mode: SortMode): Job[] {
@@ -87,7 +102,9 @@ export default function JobListPage() {
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all");
   const [tagFilter, setTagFilter] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [paycheckFilterOn, setPaycheckFilterOn] = useState(false);
+  const [paycheckMode, setPaycheckMode] = useState<PaycheckMode>("week");
   const [paycheckMonth, setPaycheckMonth] = useState<MonthOption>(() => currentMonthOption());
   const [paycheckWeekN, setPaycheckWeekN] = useState<number>(() => {
     const m = currentMonthOption();
@@ -116,18 +133,43 @@ export default function JobListPage() {
   const paycheckMonths = useMemo(() => recentMonths(12), []);
   const paycheckWeeks = useMemo(() => weeksOfMonth(paycheckMonth.year, paycheckMonth.month), [paycheckMonth]);
   const paycheckWeek = paycheckWeeks.find((w) => w.n === paycheckWeekN) ?? paycheckWeeks[paycheckWeeks.length - 1];
+  const paycheckMonthRange = useMemo(
+    () => monthRangeISO(paycheckMonth.year, paycheckMonth.month),
+    [paycheckMonth]
+  );
 
   const visibleJobs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
     const filtered = jobs.filter((job) => {
       if (statusFilter !== "all" && job.status !== statusFilter) return false;
       if (tagFilter.length > 0 && !job.tagIds.some((id) => tagFilter.includes(id))) return false;
-      if (paycheckFilterOn && paycheckWeek) {
-        if (!inRange(job.completedDate, paycheckWeek.weekStartISO, paycheckWeek.weekEndISO)) return false;
+      if (q) {
+        const customerName = (extractCustomerName(job.rawTicketText) ?? "").toLowerCase();
+        const ticketNumber = (extractTicketNumber(job.rawTicketText) ?? "").toLowerCase();
+        const matches = customerName.includes(q) || ticketNumber.includes(q) || String(job.id).includes(q);
+        if (!matches) return false;
+      }
+      if (paycheckFilterOn) {
+        if (paycheckMode === "week" && paycheckWeek) {
+          if (!inRange(job.completedDate, paycheckWeek.weekStartISO, paycheckWeek.weekEndISO)) return false;
+        } else if (paycheckMode === "month") {
+          if (!inRange(job.completedDate, paycheckMonthRange.startISO, paycheckMonthRange.endISO)) return false;
+        }
       }
       return true;
     });
     return sortJobsBy(filtered, sortMode);
-  }, [jobs, sortMode, statusFilter, tagFilter, paycheckFilterOn, paycheckWeek]);
+  }, [
+    jobs,
+    sortMode,
+    statusFilter,
+    tagFilter,
+    searchQuery,
+    paycheckFilterOn,
+    paycheckMode,
+    paycheckWeek,
+    paycheckMonthRange,
+  ]);
 
   async function handleCopy(job: Job) {
     await navigator.clipboard.writeText(formatTicketText(job));
@@ -136,7 +178,7 @@ export default function JobListPage() {
   }
 
   async function handleCopyNumber(job: Job, ticketNumber: string) {
-    await navigator.clipboard.writeText(`#${ticketNumber}`);
+    await navigator.clipboard.writeText(ticketNumber);
     setCopiedNumberId(job.id!);
     setTimeout(() => setCopiedNumberId(null), 1500);
   }
@@ -173,6 +215,14 @@ export default function JobListPage() {
 
   return (
     <div className="job-list">
+      <input
+        type="search"
+        className="job-search-input"
+        placeholder="Search by customer or job #"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+      />
+
       <div className="jobs-toolbar">
         <ChoiceBoxes options={SORT_OPTIONS} value={sortMode} onChange={setSortMode} />
         <ChoiceBoxes options={STATUS_FILTER_OPTIONS} value={statusFilter} onChange={setStatusFilter} />
@@ -203,11 +253,12 @@ export default function JobListPage() {
           className={`chip-pill${paycheckFilterOn ? " selected" : ""}`}
           onClick={() => setPaycheckFilterOn((prev) => !prev)}
         >
-          💸 Paycheck week
+          💸 Paycheck report
         </button>
 
         {paycheckFilterOn && (
           <>
+            <ChoiceBoxes options={PAYCHECK_MODE_OPTIONS} value={paycheckMode} onChange={setPaycheckMode} />
             <MonthWeekPicker
               months={paycheckMonths}
               selectedMonth={paycheckMonth}
@@ -215,13 +266,31 @@ export default function JobListPage() {
               weeks={paycheckWeeks}
               selectedWeekN={paycheckWeekN}
               onSelectWeekN={setPaycheckWeekN}
+              showWeeks={paycheckMode === "week"}
             />
-            {paycheckWeek && (
+            {paycheckMode === "week" && paycheckWeek && (
               <p className="empty-hint">
                 Jobs marked done {formatDateRange(paycheckWeek.weekStart, paycheckWeek.weekEnd)} — that's the
                 paycheck this covers
               </p>
             )}
+            {paycheckMode === "month" && (
+              <p className="empty-hint">Jobs marked done during {paycheckMonth.label} — that's the paycheck this covers</p>
+            )}
+            <button
+              type="button"
+              className="btn"
+              onClick={() =>
+                downloadJobsCsv(
+                  visibleJobs,
+                  paycheckMode === "week"
+                    ? `paycheck-week-${paycheckWeek?.weekStartISO ?? paycheckMonthRange.startISO}.csv`
+                    : `paycheck-month-${paycheckMonthRange.startISO.slice(0, 7)}.csv`
+                )
+              }
+            >
+              ⬇️ Export paycheck report
+            </button>
           </>
         )}
       </div>

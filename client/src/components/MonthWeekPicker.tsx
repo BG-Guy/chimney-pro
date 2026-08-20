@@ -7,6 +7,7 @@ export default function MonthWeekPicker({
   weeks,
   selectedWeekN,
   onSelectWeekN,
+  showWeeks = true,
 }: {
   months: MonthOption[];
   selectedMonth: MonthOption;
@@ -14,6 +15,7 @@ export default function MonthWeekPicker({
   weeks: WeekOption[];
   selectedWeekN: number;
   onSelectWeekN: (n: number) => void;
+  showWeeks?: boolean;
 }) {
   return (
     <div className="month-week-picker">
@@ -29,18 +31,20 @@ export default function MonthWeekPicker({
           </button>
         ))}
       </div>
-      <div className="chip-scroll-row">
-        {weeks.map((w) => (
-          <button
-            key={w.n}
-            type="button"
-            className={`chip-pill${selectedWeekN === w.n ? " selected" : ""}`}
-            onClick={() => onSelectWeekN(w.n)}
-          >
-            {w.label}
-          </button>
-        ))}
-      </div>
+      {showWeeks && (
+        <div className="chip-scroll-row">
+          {weeks.map((w) => (
+            <button
+              key={w.n}
+              type="button"
+              className={`chip-pill${selectedWeekN === w.n ? " selected" : ""}`}
+              onClick={() => onSelectWeekN(w.n)}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
