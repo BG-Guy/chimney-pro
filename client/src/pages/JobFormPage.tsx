@@ -5,8 +5,6 @@ import {
   CC_FEE_RATE,
   DEPOSIT_METHODS,
   DEPOSIT_METHOD_EMOJI,
-  LEAD_OUTCOME_EMOJI,
-  LEAD_OUTCOME_LABEL,
   STATUS_EMOJI,
   balanceRemaining,
   cashOwedToCompany,
@@ -17,7 +15,6 @@ import {
   totalPaid,
   type DepositMethod,
   type Job,
-  type LeadOutcome,
   type Tag,
 } from "../types";
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
@@ -34,10 +31,6 @@ const PAID_METHOD_OPTIONS: Choice<DepositMethod>[] = DEPOSIT_METHODS.map((m) => 
   label: m,
   emoji: DEPOSIT_METHOD_EMOJI[m as Exclude<DepositMethod, "">],
 }));
-
-const LEAD_OUTCOME_OPTIONS: Choice<LeadOutcome>[] = (["estimate", "deposit", "no_estimate"] as LeadOutcome[]).map(
-  (v) => ({ value: v, label: LEAD_OUTCOME_LABEL[v], emoji: LEAD_OUTCOME_EMOJI[v] })
-);
 
 export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
   const { id } = useParams();
@@ -157,6 +150,8 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
 
   if (loading) return <p className="loading-text">Loading job...</p>;
 
+  const isDeposit = totalPaid(job) > 0 && totalPaid(job) < jobTotal(job);
+
   return (
     <form className="job-form" onSubmit={handleSubmit}>
       {mode === "edit" && <p className="form-subtitle">Job #{id}</p>}
@@ -256,6 +251,13 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         <p className="subtotal">Total paid: ${totalPaid(job).toFixed(2)}</p>
       </fieldset>
 
+      {(isDeposit || job.needsRepairTeam) && (
+        <div className="ticket-tags-preview">
+          {isDeposit && <span className="deposit-badge">💰 DEPOSIT</span>}
+          {job.needsRepairTeam && <span className="repair-badge">🔧 REPAIR TEAM</span>}
+        </div>
+      )}
+
       <label>
         Parts cost
         <input
@@ -282,13 +284,16 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         <DateButton value={job.scheduledDate} onChange={(v) => updateField("scheduledDate", v)} />
       </label>
 
-      <label className="checkbox-label">
-        <input
-          type="checkbox"
-          checked={job.needsRepairTeam}
-          onChange={(e) => updateField("needsRepairTeam", e.target.checked)}
-        />
-        Needs repair team
+      <label>
+        Repair team
+        <button
+          type="button"
+          className={`choice-box${job.needsRepairTeam ? " selected" : ""}`}
+          onClick={() => updateField("needsRepairTeam", !job.needsRepairTeam)}
+        >
+          <span className="choice-emoji">🔧</span>
+          <span className="choice-label">Repair team needed</span>
+        </button>
       </label>
 
       {tags.length > 0 && (
@@ -323,15 +328,6 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         <DateButton
           value={job.completedDate}
           onChange={(v) => updateField("completedDate", v || todayISO())}
-        />
-      </label>
-
-      <label>
-        Outcome
-        <ChoiceBoxes
-          options={LEAD_OUTCOME_OPTIONS}
-          value={job.leadOutcome}
-          onChange={(v) => updateField("leadOutcome", v)}
         />
       </label>
 

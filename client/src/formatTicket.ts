@@ -12,6 +12,14 @@ export function formatTicketText(job: Job): string {
     lines.push("");
   }
 
+  const tags: string[] = [];
+  if (job.leadOutcome === "deposit") tags.push("DEPOSIT");
+  if (job.needsRepairTeam) tags.push("REPAIR TEAM");
+  if (tags.length > 0) {
+    lines.push(`Tags: ${tags.join(", ")}`);
+    lines.push("");
+  }
+
   lines.push("Items:");
   for (const item of job.items) {
     if (!item.description.trim() && !item.cost) continue;

@@ -1,4 +1,4 @@
-import type { GasLog, Job, JobStatus, Payment, Tag } from "./types";
+import { jobTotal, totalPaid, type GasLog, type Job, type JobStatus, type LeadOutcome, type Payment, type Tag } from "./types";
 import { todayISO } from "./dateUtils";
 
 const JOBS_KEY = "chimneypro:jobs";
@@ -51,6 +51,16 @@ function resolveCompletedDate(
 // dates at save time rather than leaving them null forever.
 function resolvePayments(payments: Payment[]): Payment[] {
   return payments.map((p) => ({ ...p, date: p.date || todayISO() }));
+}
+
+// The user only enters items and payments — whether a job counts as a deposit is derived
+// from that, not picked manually: a balance left on the table means a deposit was taken
+// and the rest of the job is still to come.
+function resolveLeadOutcome(job: Job): LeadOutcome {
+  const paid = totalPaid(job);
+  const total = jobTotal(job);
+  if (paid > 0 && paid < total) return "deposit";
+  return "estimate";
 }
 
 function readJobs(): Job[] {
@@ -125,10 +135,12 @@ export const api = {
   async createJob(job: Job): Promise<Job> {
     const jobs = readJobs();
     const now = nowISO();
+    const payments = resolvePayments(job.payments);
+    const withPayments = { ...job, payments };
     const created: Job = {
-      ...job,
+      ...withPayments,
       id: nextId(JOBS_SEQ_KEY),
-      payments: resolvePayments(job.payments),
+      leadOutcome: resolveLeadOutcome(withPayments),
       completedDate: resolveCompletedDate(undefined, job.status, null, job.completedDate),
       createdAt: now,
       updatedAt: now,
@@ -142,10 +154,12 @@ export const api = {
     const jobs = readJobs();
     const idx = jobs.findIndex((j) => j.id === id);
     if (idx === -1) throw new Error("Job not found");
+    const payments = resolvePayments(job.payments);
+    const withPayments = { ...job, payments };
     const updated: Job = {
-      ...job,
+      ...withPayments,
       id,
-      payments: resolvePayments(job.payments),
+      leadOutcome: resolveLeadOutcome(withPayments),
       completedDate: resolveCompletedDate(jobs[idx].status, job.status, jobs[idx].completedDate, job.completedDate),
       createdAt: jobs[idx].createdAt,
       updatedAt: nowISO(),

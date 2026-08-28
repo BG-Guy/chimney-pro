@@ -328,6 +328,7 @@ export default function JobListPage() {
                       </button>
                     )}
                     {outcome === "deposit" && <span className="deposit-badge">💰 Got Deposit</span>}
+                    {job.needsRepairTeam && <span className="repair-badge">🔧 Repair Team</span>}
                     {jobTotal(job) > 0 && balanceRemaining(job) <= 0 && (
                       <span className="paid-off-badge">💸 Ready for payout</span>
                     )}
