@@ -254,6 +254,7 @@
 }
 
 .status-tag {
+  display: inline-block;
   border: none;
   border-radius: 999px;
   padding: 5px 12px;
@@ -261,7 +262,6 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  cursor: pointer;
 }
 
 .status-tag.done {
@@ -576,6 +576,12 @@ legend {
   font-size: 0.9rem;
   margin: 0;
   color: var(--text-primary);
+}
+
+.form-hint {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .form-actions {

@@ -189,17 +189,6 @@ export default function JobListPage() {
     setJobs((prev) => prev.filter((j) => j.id !== job.id));
   }
 
-  async function toggleStatus(job: Job) {
-    const nextStatus = job.status === "done" ? "awaiting" : "done";
-    const updated = await api.setStatus(job.id!, nextStatus);
-    setJobs((prev) => prev.map((j) => (j.id === job.id ? updated : j)));
-  }
-
-  async function markDone(job: Job) {
-    const updated = await api.setStatus(job.id!, "done");
-    setJobs((prev) => prev.map((j) => (j.id === job.id ? updated : j)));
-  }
-
   if (loading) return <p className="loading-text">Loading jobs...</p>;
 
   if (jobs.length === 0) {
@@ -311,17 +300,13 @@ export default function JobListPage() {
                 {customerName && <p className="job-card-customer">{customerName}</p>}
                 <div className="job-card-top">
                   <div className="job-card-top-left">
-                    <button
-                      type="button"
-                      className={`status-tag ${job.status}${overdue ? " overdue" : ""}`}
-                      onClick={() => toggleStatus(job)}
-                    >
+                    <span className={`status-tag ${job.status}${overdue ? " overdue" : ""}`}>
                       {job.status === "done"
                         ? `${STATUS_EMOJI.done} Job done`
                         : overdue
                           ? "⚠️ Overdue"
                           : `${STATUS_EMOJI.awaiting} Job awaits`}
-                    </button>
+                    </span>
                     {ticketNumber && (
                       <button type="button" className="job-number-chip" onClick={() => handleCopyNumber(job, ticketNumber)}>
                         {copiedNumberId === job.id ? "Copied!" : `#${ticketNumber}`}
@@ -375,12 +360,6 @@ export default function JobListPage() {
                   <p className="cash-owed-callout">
                     Tech collected cash — owes company ${cashOwedToCompany(job).toFixed(2)}
                   </p>
-                )}
-
-                {totalPaid(job) > 0 && job.status === "awaiting" && (
-                  <button className="btn btn-primary btn-block" onClick={() => markDone(job)}>
-                    ✅ Job is done
-                  </button>
                 )}
 
                 <div className="job-card-actions">

@@ -5,7 +5,6 @@ import {
   CC_FEE_RATE,
   DEPOSIT_METHODS,
   DEPOSIT_METHOD_EMOJI,
-  STATUS_EMOJI,
   balanceRemaining,
   cashOwedToCompany,
   emptyJob,
@@ -20,11 +19,6 @@ import {
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import DateButton from "../components/DateButton";
 import { todayISO } from "../dateUtils";
-
-const STATUS_OPTIONS: Choice<Job["status"]>[] = [
-  { value: "awaiting", label: "Awaits", emoji: STATUS_EMOJI.awaiting },
-  { value: "done", label: "Done", emoji: STATUS_EMOJI.done },
-];
 
 const PAID_METHOD_OPTIONS: Choice<DepositMethod>[] = DEPOSIT_METHODS.map((m) => ({
   value: m,
@@ -160,6 +154,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
   if (loading) return <p className="loading-text">Loading job...</p>;
 
   const isDeposit = totalPaid(job) > 0 && totalPaid(job) < jobTotal(job);
+  const isDone = jobTotal(job) > 0 && totalPaid(job) >= jobTotal(job);
 
   return (
     <form className="job-form" onSubmit={handleSubmit}>
@@ -342,10 +337,10 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         </label>
       )}
 
-      <label>
-        Job status
-        <ChoiceBoxes options={STATUS_OPTIONS} value={job.status} onChange={(v) => updateField("status", v)} />
-      </label>
+      <p className="subtotal">
+        Job status: {isDone ? "✅ Done" : "⏳ Awaiting"}
+        <span className="form-hint"> — set automatically once the balance is paid off</span>
+      </p>
 
       <label>
         Date job was completed

@@ -63,6 +63,15 @@ function resolveLeadOutcome(job: Job): LeadOutcome {
   return "estimate";
 }
 
+// Job status is derived the same way: awaiting until enough has been paid to clear the
+// balance, then done (and ready for the paycheck). A job with no items yet isn't "done"
+// just because there's nothing to owe.
+function resolveJobStatus(job: Job): JobStatus {
+  const total = jobTotal(job);
+  const paid = totalPaid(job);
+  return total > 0 && paid >= total ? "done" : "awaiting";
+}
+
 function readJobs(): Job[] {
   // Jobs saved before a field was added won't have it in storage; backfill defaults
   // (and migrate the old single paid*/deposit* fields into a payments list) so old
@@ -138,11 +147,13 @@ export const api = {
     const now = nowISO();
     const payments = resolvePayments(job.payments);
     const withPayments = { ...job, payments };
+    const status = resolveJobStatus(withPayments);
     const created: Job = {
       ...withPayments,
       id: nextId(JOBS_SEQ_KEY),
+      status,
       leadOutcome: resolveLeadOutcome(withPayments),
-      completedDate: resolveCompletedDate(undefined, job.status, null, job.completedDate),
+      completedDate: resolveCompletedDate(undefined, status, null, job.completedDate),
       createdAt: now,
       updatedAt: now,
     };
@@ -157,11 +168,13 @@ export const api = {
     if (idx === -1) throw new Error("Job not found");
     const payments = resolvePayments(job.payments);
     const withPayments = { ...job, payments };
+    const status = resolveJobStatus(withPayments);
     const updated: Job = {
       ...withPayments,
       id,
+      status,
       leadOutcome: resolveLeadOutcome(withPayments),
-      completedDate: resolveCompletedDate(jobs[idx].status, job.status, jobs[idx].completedDate, job.completedDate),
+      completedDate: resolveCompletedDate(jobs[idx].status, status, jobs[idx].completedDate, job.completedDate),
       createdAt: jobs[idx].createdAt,
       updatedAt: nowISO(),
     };
@@ -172,21 +185,6 @@ export const api = {
 
   async deleteJob(id: number): Promise<void> {
     writeJobs(readJobs().filter((j) => j.id !== id));
-  },
-
-  async setStatus(id: number, status: JobStatus): Promise<Job> {
-    const jobs = readJobs();
-    const idx = jobs.findIndex((j) => j.id === id);
-    if (idx === -1) throw new Error("Job not found");
-    const prev = jobs[idx];
-    jobs[idx] = {
-      ...prev,
-      status,
-      completedDate: resolveCompletedDate(prev.status, status, prev.completedDate),
-      updatedAt: nowISO(),
-    };
-    writeJobs(jobs);
-    return jobs[idx];
   },
 
   async listGasLogs(): Promise<GasLog[]> {
