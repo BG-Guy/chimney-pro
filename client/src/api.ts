@@ -80,6 +80,7 @@ function readJobs(): Job[] {
       ...job,
       tagIds: job.tagIds ?? [],
       loggedDate: job.loggedDate ?? job.createdAt?.slice(0, 10) ?? todayISO(),
+      items: (job.items ?? []).map((item: any) => ({ ...item, quantity: item.quantity ?? 1 })),
       payments,
       completedDate:
         job.completedDate ?? (job.status === "done" ? job.updatedAt?.slice(0, 10) ?? null : null),

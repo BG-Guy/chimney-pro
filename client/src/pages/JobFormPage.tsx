@@ -77,8 +77,17 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
     });
   }
 
+  function updateItemQuantity(index: number, delta: number) {
+    setJob((prev) => {
+      const items = [...prev.items];
+      const next = Math.max(1, (items[index].quantity || 1) + delta);
+      items[index] = { ...items[index], quantity: next };
+      return { ...prev, items };
+    });
+  }
+
   function addItem() {
-    setJob((prev) => ({ ...prev, items: [...prev.items, { description: "", cost: 0 }] }));
+    setJob((prev) => ({ ...prev, items: [...prev.items, { description: "", cost: 0, quantity: 1 }] }));
   }
 
   function removeItem(index: number) {
@@ -165,7 +174,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
           placeholder="Paste the raw job ticket text here..."
         />
       </label>
-      <button type="button" className="btn" onClick={handlePasteTicket}>
+      <button type="button" className="btn btn-sm" onClick={handlePasteTicket}>
         📋 Paste from clipboard
       </button>
 
@@ -187,17 +196,31 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
               value={item.description}
               onChange={(e) => updateItem(index, "description", e.target.value)}
             />
-            <input
-              type="number"
-              step="0.01"
-              inputMode="decimal"
-              placeholder="Cost"
-              value={item.cost || ""}
-              onChange={(e) => updateItem(index, "cost", e.target.value)}
-            />
-            <button type="button" className="btn btn-danger" onClick={() => removeItem(index)}>
-              Remove
-            </button>
+            <div className="item-row-line2">
+              <div className="qty-stepper">
+                <button type="button" onClick={() => updateItemQuantity(index, -1)} aria-label="Decrease quantity">
+                  −
+                </button>
+                <span>{item.quantity || 1}x</span>
+                <button type="button" onClick={() => updateItemQuantity(index, 1)} aria-label="Increase quantity">
+                  +
+                </button>
+              </div>
+              <input
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                placeholder="Cost each"
+                value={item.cost || ""}
+                onChange={(e) => updateItem(index, "cost", e.target.value)}
+              />
+              <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItem(index)}>
+                Remove
+              </button>
+            </div>
+            {(item.quantity || 1) > 1 && item.cost > 0 && (
+              <p className="item-line-total">= ${(item.cost * (item.quantity || 1)).toFixed(2)}</p>
+            )}
           </div>
         ))}
         <button type="button" className="btn" onClick={addItem}>
@@ -265,6 +288,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
           step="0.01"
           inputMode="decimal"
           placeholder="0.00"
+          className="input-sm"
           value={job.partsCost || ""}
           onChange={(e) => updateField("partsCost", Number(e.target.value) || 0)}
         />
@@ -288,7 +312,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         Repair team
         <button
           type="button"
-          className={`choice-box${job.needsRepairTeam ? " selected" : ""}`}
+          className={`choice-box choice-box-sm${job.needsRepairTeam ? " selected" : ""}`}
           onClick={() => updateField("needsRepairTeam", !job.needsRepairTeam)}
         >
           <span className="choice-emoji">🔧</span>

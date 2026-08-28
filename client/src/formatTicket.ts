@@ -23,7 +23,10 @@ export function formatTicketText(job: Job): string {
   lines.push("Items:");
   for (const item of job.items) {
     if (!item.description.trim() && !item.cost) continue;
-    lines.push(`  - ${item.description || "(no description)"}: ${money(item.cost)}`);
+    const qty = item.quantity || 1;
+    const qtyLabel = qty > 1 ? ` x${qty}` : "";
+    const lineTotal = qty > 1 ? ` = ${money(item.cost * qty)}` : "";
+    lines.push(`  - ${item.description || "(no description)"}${qtyLabel}: ${money(item.cost)}${lineTotal}`);
   }
   lines.push(`Items subtotal: ${money(itemsTotal(job))}`);
   lines.push(`Parts cost: ${money(job.partsCost)}`);

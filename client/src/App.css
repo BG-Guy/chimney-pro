@@ -122,6 +122,12 @@
   width: 100%;
 }
 
+.btn-sm {
+  min-height: 32px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+}
+
 /* Job cards (Jobs tab) */
 
 .job-list {
@@ -348,6 +354,24 @@
   font-size: 1rem;
 }
 
+.job-form input.input-sm {
+  max-width: 140px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+/* Hide the up/down spinner arrows on all number inputs, everywhere. */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .form-subtitle {
   margin: 0;
   color: var(--text-muted);
@@ -388,6 +412,21 @@
   border-color: var(--series-1);
   background: var(--accent-bg);
   color: var(--text-primary);
+}
+
+.choice-box-sm {
+  min-width: 0;
+  padding: 6px 10px;
+  gap: 2px;
+  flex-direction: row;
+}
+
+.choice-box-sm .choice-emoji {
+  font-size: 1rem;
+}
+
+.choice-box-sm .choice-label {
+  font-size: 0.7rem;
 }
 
 .checkbox-label {
@@ -448,19 +487,54 @@ legend {
 
 .item-row {
   display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-  align-items: center;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
-.item-row input[type="text"] {
-  flex: 2;
-  min-width: 0;
+.item-row-line2 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .item-row input[type="number"] {
   flex: 1;
   min-width: 0;
+}
+
+.qty-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 0 4px;
+}
+
+.qty-stepper button {
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  width: 26px;
+  height: 34px;
+  cursor: pointer;
+}
+
+.qty-stepper span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  min-width: 22px;
+  text-align: center;
+}
+
+.item-line-total {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: right;
 }
 
 .paid-amount-row {

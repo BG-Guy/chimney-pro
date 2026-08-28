@@ -8,6 +8,7 @@ export interface JobItem {
   id?: number;
   description: string;
   cost: number;
+  quantity: number;
 }
 
 export interface Payment {
@@ -65,7 +66,7 @@ export function emptyJob(): Job {
   return {
     rawTicketText: "",
     loggedDate: todayISO(),
-    items: [{ description: "", cost: 0 }],
+    items: [{ description: "", cost: 0, quantity: 1 }],
     partsCost: 0,
     scheduledDate: null,
     needsRepairTeam: false,
@@ -78,7 +79,7 @@ export function emptyJob(): Job {
 }
 
 export function itemsTotal(job: Job): number {
-  return job.items.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
+  return job.items.reduce((sum, item) => sum + (Number(item.cost) || 0) * (Number(item.quantity) || 1), 0);
 }
 
 export function totalPaid(job: Job): number {
