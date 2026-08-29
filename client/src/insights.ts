@@ -22,33 +22,36 @@ export interface PeriodMetrics {
   gasExpense: number;
 }
 
-// Jobs are bucketed into a period by loggedDate — when the job was actually entered,
-// not when the work is scheduled for (a job logged this week but scheduled for next
-// month should still count as this week's job). Gas expense is bucketed by its own date.
-// Tech profit only counts jobs that are done AND fully paid ("ready for payroll");
-// jobs still awaiting completion show up separately as pending profit.
+// Sales-side numbers (jobs, revenue, parts, avg ticket, closing rate, repair team count)
+// are bucketed by loggedDate — when the job was actually entered. Realized tech profit is
+// a different question — it isn't earned until the job is done and paid off — so it's
+// bucketed by completedDate instead: the date the clearing payment landed. A job logged
+// three weeks ago but paid off today counts as today's payroll, not that week's sale.
+// Profit still awaiting completion is scoped to jobs logged in the period, since that's
+// "how much of what I sold this period is still outstanding." Gas expense uses its own date.
 export function computePeriodMetrics(
   jobs: Job[],
   gasLogs: GasLog[],
   startStr: string,
   endStr: string
 ): PeriodMetrics {
-  const periodJobs = jobs.filter((j) => inRange(j.loggedDate, startStr, endStr));
-  const jobCount = periodJobs.length;
-  const revenue = periodJobs.reduce((sum, j) => sum + jobTotal(j), 0);
-  const depositsWon = periodJobs.filter((j) => j.leadOutcome === "deposit").length;
+  const loggedJobs = jobs.filter((j) => inRange(j.loggedDate, startStr, endStr));
+  const completedJobs = jobs.filter((j) => isReadyForPayroll(j) && inRange(j.completedDate, startStr, endStr));
+  const jobCount = loggedJobs.length;
+  const revenue = loggedJobs.reduce((sum, j) => sum + jobTotal(j), 0);
+  const depositsWon = loggedJobs.filter((j) => j.leadOutcome === "deposit").length;
 
   return {
     jobCount,
     revenue,
-    partsCost: periodJobs.reduce((sum, j) => sum + (Number(j.partsCost) || 0), 0),
-    techProfitRealized: periodJobs.filter(isReadyForPayroll).reduce((sum, j) => sum + techProfit(j), 0),
-    techProfitAwaiting: periodJobs
+    partsCost: loggedJobs.reduce((sum, j) => sum + (Number(j.partsCost) || 0), 0),
+    techProfitRealized: completedJobs.reduce((sum, j) => sum + techProfit(j), 0),
+    techProfitAwaiting: loggedJobs
       .filter((j) => j.status === "awaiting")
       .reduce((sum, j) => sum + techProfit(j), 0),
     avgTicket: jobCount ? revenue / jobCount : 0,
     closingRate: jobCount ? (depositsWon / jobCount) * 100 : 0,
-    repairTeamCount: periodJobs.filter((j) => j.needsRepairTeam).length,
+    repairTeamCount: loggedJobs.filter((j) => j.needsRepairTeam).length,
     gasExpense: gasLogs.filter((g) => inRange(g.date, startStr, endStr)).reduce((sum, g) => sum + g.amount, 0),
   };
 }
