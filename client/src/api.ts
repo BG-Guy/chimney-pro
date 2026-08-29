@@ -1,4 +1,14 @@
-import { jobTotal, totalPaid, type GasLog, type Job, type JobStatus, type LeadOutcome, type Payment, type Tag } from "./types";
+import {
+  jobTotal,
+  paymentDateClearingBalance,
+  totalPaid,
+  type GasLog,
+  type Job,
+  type JobStatus,
+  type LeadOutcome,
+  type Payment,
+  type Tag,
+} from "./types";
 import { todayISO } from "./dateUtils";
 
 const JOBS_KEY = "chimneypro:jobs";
@@ -32,19 +42,12 @@ function nowISO(): string {
   return new Date().toISOString().replace("T", " ").slice(0, 19);
 }
 
-// The tech gets paid out when a job is marked done, so that's the date worth tracking —
-// stamp it the moment status flips to "done" (or keep a manually-edited date), and clear
-// it if the job goes back to awaiting.
-function resolveCompletedDate(
-  prevStatus: JobStatus | undefined,
-  nextStatus: JobStatus,
-  prevCompletedDate: string | null,
-  submittedCompletedDate: string | null = null
-): string | null {
-  if (nextStatus !== "done") return null;
-  if (submittedCompletedDate) return submittedCompletedDate;
-  if (prevStatus === "done" && prevCompletedDate) return prevCompletedDate;
-  return todayISO();
+// The tech gets paid out when the balance actually clears, so that's the date worth
+// tracking — not "today, whenever this happens to get saved." Recomputed fresh from the
+// payments every save, so editing a payment's date retroactively corrects it.
+function resolveCompletedDate(status: JobStatus, job: Job): string | null {
+  if (status !== "done") return null;
+  return paymentDateClearingBalance(job) ?? todayISO();
 }
 
 // A payment with no date means "today, whenever this gets saved" — stamp any still-blank
@@ -85,14 +88,20 @@ function readJobs(): Job[] {
       : legacyAmount > 0
         ? [{ amount: legacyAmount, method: legacyMethod, date: legacyDate }]
         : [];
-    return {
+    const withMigratedFields: Job = {
       ...job,
       tagIds: job.tagIds ?? [],
       loggedDate: job.loggedDate ?? job.createdAt?.slice(0, 10) ?? todayISO(),
       items: (job.items ?? []).map((item: any) => ({ ...item, quantity: item.quantity ?? 1 })),
       payments,
+    };
+    return {
+      ...withMigratedFields,
       completedDate:
-        job.completedDate ?? (job.status === "done" ? job.updatedAt?.slice(0, 10) ?? null : null),
+        job.completedDate ??
+        (job.status === "done"
+          ? paymentDateClearingBalance(withMigratedFields) ?? job.updatedAt?.slice(0, 10) ?? null
+          : null),
     };
   });
 }
@@ -153,7 +162,7 @@ export const api = {
       id: nextId(JOBS_SEQ_KEY),
       status,
       leadOutcome: resolveLeadOutcome(withPayments),
-      completedDate: resolveCompletedDate(undefined, status, null, job.completedDate),
+      completedDate: resolveCompletedDate(status, withPayments),
       createdAt: now,
       updatedAt: now,
     };
@@ -174,7 +183,7 @@ export const api = {
       id,
       status,
       leadOutcome: resolveLeadOutcome(withPayments),
-      completedDate: resolveCompletedDate(jobs[idx].status, status, jobs[idx].completedDate, job.completedDate),
+      completedDate: resolveCompletedDate(status, withPayments),
       createdAt: jobs[idx].createdAt,
       updatedAt: nowISO(),
     };

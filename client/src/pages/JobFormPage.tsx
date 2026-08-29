@@ -10,6 +10,7 @@ import {
   emptyJob,
   itemsTotal,
   jobTotal,
+  paymentDateClearingBalance,
   techProfit,
   totalPaid,
   type DepositMethod,
@@ -338,17 +339,9 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
       )}
 
       <p className="subtotal">
-        Job status: {isDone ? "✅ Done" : "⏳ Awaiting"}
+        Job status: {isDone ? `✅ Done — completed ${paymentDateClearingBalance(job) ?? todayISO()}` : "⏳ Awaiting"}
         <span className="form-hint"> — set automatically once the balance is paid off</span>
       </p>
-
-      <label>
-        Date job was completed
-        <DateButton
-          value={job.completedDate}
-          onChange={(v) => updateField("completedDate", v || todayISO())}
-        />
-      </label>
 
       <div className="form-actions">
         <button type="submit" className="btn btn-primary" disabled={saving}>

@@ -121,6 +121,25 @@ export function isReadyForPayroll(job: Job): boolean {
   return job.status === "done" && balanceRemaining(job) <= 0;
 }
 
+// Walks payments in date order and finds the one whose running total first clears the
+// balance — that's the real-world date the job became fully paid, which may not be the
+// date someone happens to save the job. Falls back to today for any payment still missing
+// a date (only possible on an in-progress, unsaved form).
+export function paymentDateClearingBalance(job: Job): string | null {
+  const total = jobTotal(job);
+  if (total <= 0) return null;
+  const sorted = job.payments
+    .filter((p) => (Number(p.amount) || 0) > 0)
+    .map((p) => ({ amount: Number(p.amount) || 0, date: p.date || todayISO() }))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  let cumulative = 0;
+  for (const p of sorted) {
+    cumulative += p.amount;
+    if (cumulative >= total) return p.date;
+  }
+  return null;
+}
+
 // When the customer pays cash, the tech physically holds that cash and owes the company
 // everything except their standard profit cut on it.
 export function cashOwedToCompany(job: Job): number {
