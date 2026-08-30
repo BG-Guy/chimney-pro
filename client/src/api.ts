@@ -227,4 +227,38 @@ export const api = {
   async deleteTag(id: number): Promise<void> {
     writeTags(readTags().filter((t) => t.id !== id));
   },
+
+  // A standalone home-screen web app gets its own storage box, walled off from whatever
+  // browser tab the data was originally entered in — export/import is the escape hatch to
+  // move data between them (and a manual backup either way, since localStorage isn't safe
+  // from the OS clearing it).
+  async exportAll(): Promise<string> {
+    return JSON.stringify(
+      {
+        version: 1,
+        exportedAt: nowISO(),
+        jobs: read<any[]>(JOBS_KEY, []),
+        jobsSeq: read<number>(JOBS_SEQ_KEY, 0),
+        gas: read<GasLog[]>(GAS_KEY, []),
+        gasSeq: read<number>(GAS_SEQ_KEY, 0),
+        tags: read<Tag[]>(TAGS_KEY, []),
+        tagsSeq: read<number>(TAGS_SEQ_KEY, 0),
+      },
+      null,
+      2
+    );
+  },
+
+  async importAll(json: string): Promise<void> {
+    const data = JSON.parse(json);
+    if (!data || typeof data !== "object" || !Array.isArray(data.jobs)) {
+      throw new Error("That file doesn't look like a Chimney Pro backup.");
+    }
+    write(JOBS_KEY, data.jobs);
+    write(JOBS_SEQ_KEY, data.jobsSeq ?? 0);
+    write(GAS_KEY, data.gas ?? []);
+    write(GAS_SEQ_KEY, data.gasSeq ?? 0);
+    write(TAGS_KEY, data.tags ?? []);
+    write(TAGS_SEQ_KEY, data.tagsSeq ?? 0);
+  },
 };
