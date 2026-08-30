@@ -112,6 +112,11 @@ function PeriodComparisonCard({
           previous={formatCompactMoney(previous.gasExpense)}
           current={formatCompactMoney(current.gasExpense)}
         />
+        <MetricRow
+          label="Cash collected"
+          previous={formatCompactMoney(previous.cashCollected)}
+          current={formatCompactMoney(current.cashCollected)}
+        />
       </div>
     </div>
   );
@@ -280,6 +285,7 @@ function QuickInsightsReport({ jobs, gasLogs }: { jobs: Job[]; gasLogs: GasLog[]
             <StatTile label="Closing rate" value={`${report.metrics.closingRate.toFixed(0)}%`} />
             <StatTile label="Repair team jobs" value={String(report.metrics.repairTeamCount)} />
             <StatTile label="Gas expense" value={formatCompactMoney(report.metrics.gasExpense)} />
+            <StatTile label="Cash collected" value={formatCompactMoney(report.metrics.cashCollected)} />
           </div>
 
           {report.jobs.length === 0 ? (
@@ -341,6 +347,10 @@ function TechPayouts({ insights }: { insights: Insights }) {
         <div className="comparison-metric">
           <span className="comparison-label">Tech profit (total)</span>
           <span className="comparison-value">{formatMoney(insights.totalTechProfit)}</span>
+        </div>
+        <div className="comparison-metric">
+          <span className="comparison-label">Cash collected (total)</span>
+          <span className="comparison-value">{formatMoney(insights.totalCashCollected)}</span>
         </div>
       </div>
       {insights.totalCashOwed > 0 && (

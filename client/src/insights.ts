@@ -20,6 +20,7 @@ export interface PeriodMetrics {
   closingRate: number;
   repairTeamCount: number;
   gasExpense: number;
+  cashCollected: number;
 }
 
 // Sales-side numbers (jobs, revenue, parts, avg ticket, closing rate, repair team count)
@@ -53,6 +54,10 @@ export function computePeriodMetrics(
     closingRate: jobCount ? (depositsWon / jobCount) * 100 : 0,
     repairTeamCount: loggedJobs.filter((j) => j.needsRepairTeam).length,
     gasExpense: gasLogs.filter((g) => inRange(g.date, startStr, endStr)).reduce((sum, g) => sum + g.amount, 0),
+    cashCollected: jobs
+      .flatMap((j) => j.payments)
+      .filter((p) => p.method === "Cash" && inRange(p.date, startStr, endStr))
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
   };
 }
 
@@ -75,6 +80,7 @@ export interface Insights {
   weeklyTrend: WeekPoint[];
   totalTechProfit: number;
   totalCashOwed: number;
+  totalCashCollected: number;
   dueThisWeekCount: number;
   repairTeamPendingCount: number;
   pendingTechProfit: number;
@@ -136,6 +142,10 @@ export function computeInsights(jobs: Job[]): Insights {
     weeklyTrend,
     totalTechProfit: jobs.filter(isReadyForPayroll).reduce((sum, j) => sum + techProfit(j), 0),
     totalCashOwed: jobs.reduce((sum, j) => sum + cashOwedToCompany(j), 0),
+    totalCashCollected: jobs
+      .flatMap((j) => j.payments)
+      .filter((p) => p.method === "Cash")
+      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
     dueThisWeekCount,
     repairTeamPendingCount,
     pendingTechProfit,

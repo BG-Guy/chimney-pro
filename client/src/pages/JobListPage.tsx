@@ -29,7 +29,7 @@ import {
   type MonthOption,
 } from "../dateBuckets";
 import { inRange } from "../dateUtils";
-import { downloadJobsCsv } from "../jobsCsv";
+import { downloadJobsCsv, totalCashInJobs } from "../jobsCsv";
 
 function formatDateRange(start: Date, end: Date): string {
   const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -266,6 +266,7 @@ export default function JobListPage() {
             {paycheckMode === "month" && (
               <p className="empty-hint">Jobs marked done during {paycheckMonth.label} — that's the paycheck this covers</p>
             )}
+            <p className="subtotal">Cash collected: ${totalCashInJobs(visibleJobs).toFixed(2)}</p>
             <button
               type="button"
               className="btn"

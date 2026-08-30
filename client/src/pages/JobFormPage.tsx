@@ -197,7 +197,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
                 <button type="button" onClick={() => updateItemQuantity(index, -1)} aria-label="Decrease quantity">
                   −
                 </button>
-                <span>{item.quantity || 1}x</span>
+                <span>{item.quantity || 1}</span>
                 <button type="button" onClick={() => updateItemQuantity(index, 1)} aria-label="Increase quantity">
                   +
                 </button>

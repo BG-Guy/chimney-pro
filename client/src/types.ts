@@ -148,6 +148,10 @@ export function cashOwedToCompany(job: Job): number {
     .reduce((sum, p) => sum + (Number(p.amount) || 0) * (1 - TECH_PROFIT_RATE), 0);
 }
 
+export function totalCashCollected(job: Job): number {
+  return job.payments.reduce((sum, p) => sum + (p.method === "Cash" ? Number(p.amount) || 0 : 0), 0);
+}
+
 export interface GasLog {
   id?: number;
   amount: number;

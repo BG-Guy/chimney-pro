@@ -1,7 +1,13 @@
-import { itemsTotal, jobTotal, totalPaid, type Job } from "./types";
+import { jobTotal, type Job } from "./types";
 
 function money(n: number): string {
   return `$${(Number(n) || 0).toFixed(2)}`;
+}
+
+// "2026-03-09" -> "3/09", matching how a tech would jot the date down by hand.
+function shortDate(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${Number(m)}/${d}`;
 }
 
 export function formatTicketText(job: Job): string {
@@ -9,14 +15,6 @@ export function formatTicketText(job: Job): string {
 
   if (job.rawTicketText.trim()) {
     lines.push(job.rawTicketText.trim());
-    lines.push("");
-  }
-
-  const tags: string[] = [];
-  if (job.leadOutcome === "deposit") tags.push("DEPOSIT");
-  if (job.needsRepairTeam) tags.push("REPAIR TEAM");
-  if (tags.length > 0) {
-    lines.push(`Tags: ${tags.join(", ")}`);
     lines.push("");
   }
 
@@ -28,22 +26,31 @@ export function formatTicketText(job: Job): string {
     const lineTotal = qty > 1 ? ` = ${money(item.cost * qty)}` : "";
     lines.push(`  - ${item.description || "(no description)"}${qtyLabel}: ${money(item.cost)}${lineTotal}`);
   }
-  lines.push(`Items subtotal: ${money(itemsTotal(job))}`);
-  lines.push(`Parts cost: ${money(job.partsCost)}`);
-  lines.push(`Total: ${money(jobTotal(job))}`);
+  lines.push(`Total price: ${money(jobTotal(job))}`);
+
+  const tags: string[] = [];
+  if (job.leadOutcome === "deposit") tags.push("DEPOSIT");
+  if (job.needsRepairTeam) tags.push("REPAIR TEAM");
+  if (tags.length > 0) {
+    lines.push("");
+    lines.push(`Tags: ${tags.join(", ")}`);
+  }
+
+  const paidPayments = job.payments.filter((p) => p.amount > 0);
+  if (paidPayments.length > 0) {
+    lines.push("");
+    paidPayments.forEach((p, i) => {
+      lines.push(`Payment ${i + 1}: ${money(p.amount)}${p.method ? ` by ${p.method.toLowerCase()}` : ""}`);
+    });
+  }
+
   lines.push("");
-  lines.push(`Status: ${job.status === "done" ? "Job done" : "Job awaits"}`);
-  lines.push(
-    job.status === "done"
-      ? `Completed date: ${job.completedDate || "—"}`
-      : `Scheduled date: ${job.scheduledDate || "TBD"}`
-  );
-  lines.push(`Repair team needed: ${job.needsRepairTeam ? "Yes" : "No"}`);
-  lines.push("");
-  lines.push(`Paid total: ${money(totalPaid(job))}`);
-  for (const p of job.payments) {
-    if (!p.amount) continue;
-    lines.push(`  - ${money(p.amount)}${p.method ? ` (${p.method})` : ""}`);
+  if (job.status === "done") {
+    lines.push("Job is done.");
+  } else if (job.scheduledDate) {
+    lines.push(`Will do the job on ${shortDate(job.scheduledDate)}.`);
+  } else {
+    lines.push("Awaiting — no date scheduled yet.");
   }
 
   return lines.join("\n");
