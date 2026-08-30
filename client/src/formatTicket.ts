@@ -1,8 +1,5 @@
 import type { Job } from "./types";
-
-function money(n: number): string {
-  return `$${(Number(n) || 0).toFixed(2)}`;
-}
+import { formatMoney as money } from "./format";
 
 // "2026-03-09" -> "3/09", matching how a tech would jot the date down by hand.
 function shortDate(iso: string): string {

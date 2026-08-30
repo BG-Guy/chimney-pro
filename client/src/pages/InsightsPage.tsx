@@ -13,17 +13,7 @@ import {
 import { addDays, computeDateRanges, fmtISO } from "../dateUtils";
 import MonthWeekPicker from "../components/MonthWeekPicker";
 import { DEPOSIT_METHOD_EMOJI, type GasLog, type Job } from "../types";
-
-function formatCompactMoney(n: number): string {
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
-  return `$${n.toFixed(0)}`;
-}
-
-function formatMoney(n: number): string {
-  return `$${n.toFixed(2)}`;
-}
+import { formatCompactMoney, formatMoney } from "../format";
 
 function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
