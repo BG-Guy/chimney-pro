@@ -289,27 +289,27 @@ function QuickInsightsReport({ jobs, gasLogs }: { jobs: Job[]; gasLogs: GasLog[]
                       #{j.id}
                       {j.customerName ? ` · ${j.customerName}` : ""}
                     </span>
-                    <span>${j.total.toFixed(2)}</span>
+                    <span>{formatMoney(j.total)}</span>
                   </div>
                   <dl className="job-card-details">
                     <div>
                       <dt>Parts</dt>
-                      <dd>${j.partsCost.toFixed(2)}</dd>
+                      <dd>{formatMoney(j.partsCost)}</dd>
                     </div>
                     <div>
                       <dt>Tech profit</dt>
-                      <dd>${j.techProfit.toFixed(2)}</dd>
+                      <dd>{formatMoney(j.techProfit)}</dd>
                     </div>
                     <div>
                       <dt>Paid</dt>
                       <dd>
-                        ${j.paid.toFixed(2)}
+                        {formatMoney(j.paid)}
                         {j.paidMethods ? ` (${j.paidMethods})` : ""}
                       </dd>
                     </div>
                     <div>
                       <dt>Balance</dt>
-                      <dd>${j.balance.toFixed(2)}</dd>
+                      <dd>{formatMoney(j.balance)}</dd>
                     </div>
                   </dl>
                 </div>
@@ -345,7 +345,7 @@ function TechPayouts({ insights }: { insights: Insights }) {
       </div>
       {insights.totalCashOwed > 0 && (
         <p className="cash-owed-callout">
-          ${insights.totalCashOwed.toFixed(2)} owed back to the company from cash jobs
+          {formatMoney(insights.totalCashOwed)} owed back to the company from cash jobs
         </p>
       )}
     </div>

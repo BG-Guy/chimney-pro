@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { GasLog } from "../types";
 import { todayISO } from "../dateUtils";
+import { formatMoney } from "../format";
 
 export default function GasLogPage() {
   const [logs, setLogs] = useState<GasLog[]>([]);
@@ -71,7 +72,7 @@ export default function GasLogPage() {
           {logs.map((log) => (
             <div className="gas-row" key={log.id}>
               <span className="gas-row-date">{log.date}</span>
-              <span className="gas-row-amount">${log.amount.toFixed(2)}</span>
+              <span className="gas-row-amount">{formatMoney(log.amount)}</span>
               <button className="btn btn-danger" onClick={() => handleDelete(log.id!)}>
                 Delete
               </button>

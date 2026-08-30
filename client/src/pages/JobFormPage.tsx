@@ -20,6 +20,7 @@ import {
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import DateButton from "../components/DateButton";
 import { todayISO } from "../dateUtils";
+import { formatMoney } from "../format";
 
 const PAID_METHOD_OPTIONS: Choice<DepositMethod>[] = DEPOSIT_METHODS.map((m) => ({
   value: m,
@@ -215,14 +216,14 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
               </button>
             </div>
             {(item.quantity || 1) > 1 && item.cost > 0 && (
-              <p className="item-line-total">= ${(item.cost * (item.quantity || 1)).toFixed(2)}</p>
+              <p className="item-line-total">= {formatMoney(item.cost * (item.quantity || 1))}</p>
             )}
           </div>
         ))}
         <button type="button" className="btn" onClick={addItem}>
           + Add item
         </button>
-        <p className="subtotal">Items subtotal: ${itemsTotal(job).toFixed(2)}</p>
+        <p className="subtotal">Items subtotal: {formatMoney(itemsTotal(job))}</p>
       </fieldset>
 
       <fieldset>
@@ -256,7 +257,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
             />
             {payment.method === "CC" && payment.amount > 0 && (
               <p className="cash-owed-callout">
-                +${(payment.amount * CC_FEE_RATE).toFixed(2)} CC fee (3%) on this payment
+                +{formatMoney(payment.amount * CC_FEE_RATE)} CC fee (3%) on this payment
               </p>
             )}
             <button type="button" className="btn btn-danger" onClick={() => removePayment(index)}>
@@ -267,7 +268,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         <button type="button" className="btn" onClick={addPayment}>
           + Add payment
         </button>
-        <p className="subtotal">Total paid: ${totalPaid(job).toFixed(2)}</p>
+        <p className="subtotal">Total paid: {formatMoney(totalPaid(job))}</p>
       </fieldset>
 
       {(isDeposit || job.needsRepairTeam) && (
@@ -290,12 +291,12 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         />
       </label>
 
-      <p className="total">Total job cost: ${jobTotal(job).toFixed(2)}</p>
-      <p className="subtotal">Balance remaining: ${balanceRemaining(job).toFixed(2)}</p>
-      <p className="subtotal">Tech profit (25% after parts): ${techProfit(job).toFixed(2)}</p>
+      <p className="total">Total job cost: {formatMoney(jobTotal(job))}</p>
+      <p className="subtotal">Balance remaining: {formatMoney(balanceRemaining(job))}</p>
+      <p className="subtotal">Tech profit (25% after parts): {formatMoney(techProfit(job))}</p>
       {cashOwedToCompany(job) > 0 && (
         <p className="cash-owed-callout">
-          Paid in cash — tech owes company ${cashOwedToCompany(job).toFixed(2)}
+          Paid in cash — tech owes company {formatMoney(cashOwedToCompany(job))}
         </p>
       )}
 

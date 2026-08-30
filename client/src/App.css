@@ -159,6 +159,15 @@
   align-items: flex-start;
 }
 
+.job-status-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
 .job-cards {
   display: flex;
   flex-direction: column;

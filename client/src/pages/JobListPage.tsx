@@ -30,6 +30,7 @@ import {
 } from "../dateBuckets";
 import { inRange } from "../dateUtils";
 import { downloadJobsCsv, totalCashInJobs } from "../jobsCsv";
+import { formatMoney } from "../format";
 
 function formatDateRange(start: Date, end: Date): string {
   const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -171,6 +172,18 @@ export default function JobListPage() {
     paycheckMonthRange,
   ]);
 
+  const statusCounts = useMemo(() => {
+    let done = 0;
+    let waitingForPayment = 0;
+    let awaits = 0;
+    for (const job of visibleJobs) {
+      if (job.status === "done") done++;
+      else if (job.leadOutcome === "deposit") waitingForPayment++;
+      else awaits++;
+    }
+    return { done, waitingForPayment, awaits };
+  }, [visibleJobs]);
+
   async function handleCopy(job: Job) {
     await navigator.clipboard.writeText(formatTicketText(job));
     setCopiedId(job.id!);
@@ -266,7 +279,7 @@ export default function JobListPage() {
             {paycheckMode === "month" && (
               <p className="empty-hint">Jobs marked done during {paycheckMonth.label} — that's the paycheck this covers</p>
             )}
-            <p className="subtotal">Cash collected: ${totalCashInJobs(visibleJobs).toFixed(2)}</p>
+            <p className="subtotal">Cash collected: {formatMoney(totalCashInJobs(visibleJobs))}</p>
             <button
               type="button"
               className="btn"
@@ -283,6 +296,12 @@ export default function JobListPage() {
             </button>
           </>
         )}
+      </div>
+
+      <div className="job-status-summary">
+        <strong>{statusCounts.awaits} Jobs awaits</strong>
+        <strong>{statusCounts.done} Jobs done</strong>
+        <strong>{statusCounts.waitingForPayment} Jobs waiting for payment</strong>
       </div>
 
       {visibleJobs.length === 0 ? (
@@ -319,7 +338,7 @@ export default function JobListPage() {
                       <span className="paid-off-badge">💸 Ready for payout</span>
                     )}
                   </div>
-                  <span className="job-card-total">${jobTotal(job).toFixed(2)}</span>
+                  <span className="job-card-total">{formatMoney(jobTotal(job))}</span>
                 </div>
 
                 <dl className="job-card-details">
@@ -330,7 +349,7 @@ export default function JobListPage() {
                   <div>
                     <dt>Paid</dt>
                     <dd>
-                      {totalPaid(job) ? `$${totalPaid(job).toFixed(2)}` : "—"}
+                      {totalPaid(job) ? formatMoney(totalPaid(job)) : "—"}
                       {job.payments
                         .filter((p) => p.amount && p.method)
                         .map((p) => ` ${DEPOSIT_METHOD_EMOJI[p.method as Exclude<typeof p.method, "">]}`)
@@ -343,11 +362,11 @@ export default function JobListPage() {
                   </div>
                   <div>
                     <dt>Tech profit</dt>
-                    <dd>${techProfit(job).toFixed(2)}</dd>
+                    <dd>{formatMoney(techProfit(job))}</dd>
                   </div>
                   <div>
                     <dt>Balance remaining</dt>
-                    <dd>${balanceRemaining(job).toFixed(2)}</dd>
+                    <dd>{formatMoney(balanceRemaining(job))}</dd>
                   </div>
                   <div>
                     <dt>Outcome</dt>
@@ -359,7 +378,7 @@ export default function JobListPage() {
 
                 {cashOwedToCompany(job) > 0 && (
                   <p className="cash-owed-callout">
-                    Tech collected cash — owes company ${cashOwedToCompany(job).toFixed(2)}
+                    Tech collected cash — owes company {formatMoney(cashOwedToCompany(job))}
                   </p>
                 )}
 
