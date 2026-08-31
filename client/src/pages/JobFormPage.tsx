@@ -156,7 +156,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
   if (loading) return <p className="loading-text">Loading job...</p>;
 
   const isDeposit = totalPaid(job) > 0 && totalPaid(job) < jobTotal(job);
-  const isDone = jobTotal(job) > 0 && totalPaid(job) >= jobTotal(job);
+  const isDone = balanceRemaining(job) <= 0;
 
   return (
     <form className="job-form" onSubmit={handleSubmit}>
