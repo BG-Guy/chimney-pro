@@ -159,6 +159,21 @@
   align-items: flex-start;
 }
 
+.paycheck-date-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.paycheck-date-range label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
 .job-status-summary {
   display: flex;
   flex-wrap: wrap;
