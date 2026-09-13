@@ -20,17 +20,16 @@ import { extractTicketNumber } from "../ticketNumber";
 import { extractCustomerName } from "../customerName";
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import MonthWeekPicker from "../components/MonthWeekPicker";
-import {
-  currentMonthOption,
-  currentWeekOfMonthN,
-  monthRangeISO,
-  recentMonths,
-  weeksOfMonth,
-  type MonthOption,
-} from "../dateBuckets";
-import { inRange } from "../dateUtils";
+import DateButton from "../components/DateButton";
+import { currentMonthOption, monthRangeISO, recentMonths, type MonthOption } from "../dateBuckets";
+import { addDays, fmtISO, inRange, startOfWeek } from "../dateUtils";
 import { downloadJobsCsv, totalCashInJobs } from "../jobsCsv";
 import { formatMoney } from "../format";
+
+function isoToDate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
 
 function formatDateRange(start: Date, end: Date): string {
   const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -58,10 +57,10 @@ const STATUS_FILTER_OPTIONS: Choice<JobStatus | "all">[] = [
   { value: "done", label: "Done", emoji: STATUS_EMOJI.done },
 ];
 
-type PaycheckMode = "week" | "month";
+type PaycheckMode = "range" | "month";
 
 const PAYCHECK_MODE_OPTIONS: Choice<PaycheckMode>[] = [
-  { value: "week", label: "Week", emoji: "📅" },
+  { value: "range", label: "Date range", emoji: "📅" },
   { value: "month", label: "Month", emoji: "🗓️" },
 ];
 
@@ -105,12 +104,12 @@ export default function JobListPage() {
   const [tagFilter, setTagFilter] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [paycheckFilterOn, setPaycheckFilterOn] = useState(false);
-  const [paycheckMode, setPaycheckMode] = useState<PaycheckMode>("week");
+  const [paycheckMode, setPaycheckMode] = useState<PaycheckMode>("range");
   const [paycheckMonth, setPaycheckMonth] = useState<MonthOption>(() => currentMonthOption());
-  const [paycheckWeekN, setPaycheckWeekN] = useState<number>(() => {
-    const m = currentMonthOption();
-    return currentWeekOfMonthN(m.year, m.month);
-  });
+  const [paycheckRangeStart, setPaycheckRangeStart] = useState<string>(() => fmtISO(startOfWeek(new Date())));
+  const [paycheckRangeEnd, setPaycheckRangeEnd] = useState<string>(() =>
+    fmtISO(addDays(startOfWeek(new Date()), 6))
+  );
 
   useEffect(() => {
     api
@@ -124,19 +123,17 @@ export default function JobListPage() {
     setTagFilter((prev) => (prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]));
   }
 
-  function handleSelectPaycheckMonth(m: MonthOption) {
-    setPaycheckMonth(m);
-    const isCurrentMonth = m.year === currentMonthOption().year && m.month === currentMonthOption().month;
-    const w = weeksOfMonth(m.year, m.month);
-    setPaycheckWeekN(isCurrentMonth ? currentWeekOfMonthN(m.year, m.month) : w[w.length - 1]?.n ?? 1);
-  }
-
   const paycheckMonths = useMemo(() => recentMonths(12), []);
-  const paycheckWeeks = useMemo(() => weeksOfMonth(paycheckMonth.year, paycheckMonth.month), [paycheckMonth]);
-  const paycheckWeek = paycheckWeeks.find((w) => w.n === paycheckWeekN) ?? paycheckWeeks[paycheckWeeks.length - 1];
   const paycheckMonthRange = useMemo(
     () => monthRangeISO(paycheckMonth.year, paycheckMonth.month),
     [paycheckMonth]
+  );
+  const paycheckRange = useMemo(
+    () =>
+      paycheckRangeStart <= paycheckRangeEnd
+        ? { startISO: paycheckRangeStart, endISO: paycheckRangeEnd }
+        : { startISO: paycheckRangeEnd, endISO: paycheckRangeStart },
+    [paycheckRangeStart, paycheckRangeEnd]
   );
 
   const visibleJobs = useMemo(() => {
@@ -151,8 +148,8 @@ export default function JobListPage() {
         if (!matches) return false;
       }
       if (paycheckFilterOn) {
-        if (paycheckMode === "week" && paycheckWeek) {
-          if (!inRange(job.completedDate, paycheckWeek.weekStartISO, paycheckWeek.weekEndISO)) return false;
+        if (paycheckMode === "range") {
+          if (!inRange(job.completedDate, paycheckRange.startISO, paycheckRange.endISO)) return false;
         } else if (paycheckMode === "month") {
           if (!inRange(job.completedDate, paycheckMonthRange.startISO, paycheckMonthRange.endISO)) return false;
         }
@@ -168,7 +165,7 @@ export default function JobListPage() {
     searchQuery,
     paycheckFilterOn,
     paycheckMode,
-    paycheckWeek,
+    paycheckRange,
     paycheckMonthRange,
   ]);
 
@@ -261,19 +258,25 @@ export default function JobListPage() {
         {paycheckFilterOn && (
           <>
             <ChoiceBoxes options={PAYCHECK_MODE_OPTIONS} value={paycheckMode} onChange={setPaycheckMode} />
-            <MonthWeekPicker
-              months={paycheckMonths}
-              selectedMonth={paycheckMonth}
-              onSelectMonth={handleSelectPaycheckMonth}
-              weeks={paycheckWeeks}
-              selectedWeekN={paycheckWeekN}
-              onSelectWeekN={setPaycheckWeekN}
-              showWeeks={paycheckMode === "week"}
-            />
-            {paycheckMode === "week" && paycheckWeek && (
+            {paycheckMode === "range" && (
+              <div className="paycheck-date-range">
+                <label>
+                  From
+                  <DateButton value={paycheckRangeStart} onChange={(v) => setPaycheckRangeStart(v || paycheckRangeStart)} />
+                </label>
+                <label>
+                  To
+                  <DateButton value={paycheckRangeEnd} onChange={(v) => setPaycheckRangeEnd(v || paycheckRangeEnd)} />
+                </label>
+              </div>
+            )}
+            {paycheckMode === "month" && (
+              <MonthWeekPicker months={paycheckMonths} selectedMonth={paycheckMonth} onSelectMonth={setPaycheckMonth} />
+            )}
+            {paycheckMode === "range" && (
               <p className="empty-hint">
-                Jobs marked done {formatDateRange(paycheckWeek.weekStart, paycheckWeek.weekEnd)} — that's the
-                paycheck this covers
+                Jobs marked done {formatDateRange(isoToDate(paycheckRange.startISO), isoToDate(paycheckRange.endISO))} —
+                that's the paycheck this covers
               </p>
             )}
             {paycheckMode === "month" && (
@@ -286,8 +289,8 @@ export default function JobListPage() {
               onClick={() =>
                 downloadJobsCsv(
                   visibleJobs,
-                  paycheckMode === "week"
-                    ? `paycheck-week-${paycheckWeek?.weekStartISO ?? paycheckMonthRange.startISO}.csv`
+                  paycheckMode === "range"
+                    ? `paycheck-${paycheckRange.startISO}-to-${paycheckRange.endISO}.csv`
                     : `paycheck-month-${paycheckMonthRange.startISO.slice(0, 7)}.csv`
                 )
               }
