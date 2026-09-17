@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { extractCustomerName } from "../customerName";
 import { extractAddress } from "../address";
+import { extractScheduledTime } from "../scheduledTime";
 import { geocodeAll } from "../geocode";
 import { optimizeStopOrder } from "../routeOptimize";
 import { buildGoogleMapsRouteUrl } from "../googleMapsRoute";
@@ -10,6 +11,16 @@ interface Stop {
   id: number;
   name: string;
   address: string;
+  time: string;
+}
+
+interface Draft {
+  name: string;
+  address: string;
+  time: string;
+  missingName: boolean;
+  missingAddress: boolean;
+  missingTime: boolean;
 }
 
 type BuildState = "idle" | "geocoding" | "error";
@@ -18,10 +29,12 @@ let nextStopId = 1;
 
 export default function RoutePlanPage() {
   const [pastedText, setPastedText] = useState("");
-  const [parseError, setParseError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [buildState, setBuildState] = useState<BuildState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [failedStopIds, setFailedStopIds] = useState<number[]>([]);
   const [orderedStops, setOrderedStops] = useState<Stop[] | null>(null);
   const [mapsUrl, setMapsUrl] = useState<string | null>(null);
 
@@ -29,6 +42,7 @@ export default function RoutePlanPage() {
     setOrderedStops(null);
     setMapsUrl(null);
     setErrorMessage(null);
+    setFailedStopIds([]);
   }
 
   async function handlePasteFromClipboard() {
@@ -40,17 +54,50 @@ export default function RoutePlanPage() {
     }
   }
 
+  function commitStop(name: string, address: string, time: string) {
+    setStops((prev) => [
+      ...prev,
+      { id: nextStopId++, name: name.trim() || `Stop ${prev.length + 1}`, address: address.trim(), time: time.trim() },
+    ]);
+    setPastedText("");
+    setDraft(null);
+    setDraftError(null);
+    resetRoute();
+  }
+
   function handleAddStop() {
     const address = extractAddress(pastedText);
-    if (!address) {
-      setParseError("Couldn't find an address in that text — make sure the street, city, state, and zip are on their own line.");
+    const name = extractCustomerName(pastedText);
+    const time = extractScheduledTime(pastedText);
+
+    if (!address || !name || !time) {
+      setDraft({
+        name: name ?? "",
+        address: address ?? "",
+        time: time ?? "",
+        missingName: !name,
+        missingAddress: !address,
+        missingTime: !time,
+      });
+      setDraftError(null);
       return;
     }
-    const name = extractCustomerName(pastedText) || `Stop ${stops.length + 1}`;
-    setStops((prev) => [...prev, { id: nextStopId++, name, address }]);
-    setPastedText("");
-    setParseError(null);
-    resetRoute();
+
+    commitStop(name, address, time);
+  }
+
+  function handleConfirmDraft() {
+    if (!draft) return;
+    if (!draft.address.trim()) {
+      setDraftError("An address is required — the route can't be built without one.");
+      return;
+    }
+    commitStop(draft.name, draft.address, draft.time);
+  }
+
+  function handleCancelDraft() {
+    setDraft(null);
+    setDraftError(null);
   }
 
   function handleRemoveStop(id: number) {
@@ -63,6 +110,7 @@ export default function RoutePlanPage() {
 
     setBuildState("geocoding");
     setErrorMessage(null);
+    setFailedStopIds([]);
     setOrderedStops(null);
     setMapsUrl(null);
 
@@ -76,7 +124,12 @@ export default function RoutePlanPage() {
       ]);
       const missing = stops.filter((_, i) => !points[i]);
       if (missing.length > 0) {
-        setErrorMessage(`Couldn't locate: ${missing.map((s) => s.name).join(", ")}`);
+        setFailedStopIds(missing.map((s) => s.id));
+        setErrorMessage(
+          `Couldn't find a map location for ${missing.length === 1 ? "this address" : "these addresses"}: ${missing
+            .map((s) => `"${s.address}"`)
+            .join(", ")}. Double-check the street number, city, state, and 5-digit zip are correct and spelled right — the flagged stop(s) below can be removed and re-added with the fix.`
+        );
         setBuildState("error");
         return;
       }
@@ -98,51 +151,107 @@ export default function RoutePlanPage() {
     <div className="job-list">
       <p className="empty-hint">Paste a job ticket, click Add, and repeat for each stop.</p>
 
-      <form
-        className="job-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleAddStop();
-        }}
-      >
-        <label>
-          Paste job ticket
-          <textarea
-            rows={5}
-            value={pastedText}
-            onChange={(e) => {
-              setPastedText(e.target.value);
-              setParseError(null);
-            }}
-            placeholder="Paste the raw job ticket text here..."
-          />
-        </label>
-        <div className="jobs-toolbar" style={{ flexDirection: "row" }}>
-          <button type="button" className="btn btn-sm" onClick={handlePasteFromClipboard}>
-            📋 Paste from clipboard
-          </button>
-          <button type="submit" className="btn btn-primary btn-sm" disabled={!pastedText.trim()}>
-            ➕ Add stop
-          </button>
+      {draft ? (
+        <div className="card job-form">
+          <div className="card-header">
+            <h3>Fill in the missing details</h3>
+          </div>
+          <p className="card-caption">
+            Couldn't automatically detect the{" "}
+            {[draft.missingName && "name", draft.missingAddress && "address", draft.missingTime && "date/time"]
+              .filter(Boolean)
+              .join(", ")}{" "}
+            from that text — fill it in below.
+          </p>
+          <label>
+            Customer name
+            <input
+              type="text"
+              value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              placeholder="e.g. Scott Davis"
+            />
+          </label>
+          <label>
+            Address
+            <input
+              type="text"
+              value={draft.address}
+              onChange={(e) => setDraft({ ...draft, address: e.target.value })}
+              placeholder="Street, City, State ZIP"
+            />
+          </label>
+          <label>
+            Scheduled date/time
+            <input
+              type="text"
+              value={draft.time}
+              onChange={(e) => setDraft({ ...draft, time: e.target.value })}
+              placeholder="e.g. September 20, 2026, 2:00 pm"
+            />
+          </label>
+          {draftError && <p className="empty-hint">{draftError}</p>}
+          <div className="jobs-toolbar" style={{ flexDirection: "row" }}>
+            <button type="button" className="btn btn-sm" onClick={handleCancelDraft}>
+              Cancel
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={handleConfirmDraft}>
+              ✅ Confirm & add stop
+            </button>
+          </div>
         </div>
-        {parseError && <p className="empty-hint">{parseError}</p>}
-      </form>
+      ) : (
+        <form
+          className="job-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleAddStop();
+          }}
+        >
+          <label>
+            Paste job ticket
+            <textarea
+              rows={5}
+              value={pastedText}
+              onChange={(e) => setPastedText(e.target.value)}
+              placeholder="Paste the raw job ticket text here..."
+            />
+          </label>
+          <div className="jobs-toolbar" style={{ flexDirection: "row" }}>
+            <button type="button" className="btn btn-sm" onClick={handlePasteFromClipboard}>
+              📋 Paste from clipboard
+            </button>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={!pastedText.trim()}>
+              ➕ Add stop
+            </button>
+          </div>
+        </form>
+      )}
 
       {stops.length > 0 && (
         <div className="job-cards">
-          {stops.map((stop, i) => (
-            <div className="job-card" key={stop.id}>
-              <div className="job-card-top">
-                <strong>
-                  {i + 1}. {stop.name}
-                </strong>
-                <button type="button" className="btn btn-sm btn-danger" onClick={() => handleRemoveStop(stop.id)}>
-                  Remove
-                </button>
+          {stops.map((stop, i) => {
+            const failed = failedStopIds.includes(stop.id);
+            return (
+              <div
+                className="job-card"
+                key={stop.id}
+                style={failed ? { borderColor: "var(--critical)" } : undefined}
+              >
+                <div className="job-card-top">
+                  <strong>
+                    {i + 1}. {stop.name}
+                  </strong>
+                  <button type="button" className="btn btn-sm btn-danger" onClick={() => handleRemoveStop(stop.id)}>
+                    Remove
+                  </button>
+                </div>
+                <span className="empty-hint">{stop.address}</span>
+                {stop.time && <span className="empty-hint">📅 {stop.time}</span>}
+                {failed && <p className="overdue-callout">⚠️ Couldn't find this address on the map — check it's correct.</p>}
               </div>
-              <span className="empty-hint">{stop.address}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
