@@ -1,52 +1,64 @@
-import { useEffect, useMemo, useState } from "react";
-import { api } from "../api";
-import type { Job } from "../types";
+import { useState } from "react";
 import { extractCustomerName } from "../customerName";
 import { extractAddress } from "../address";
 import { geocodeAll } from "../geocode";
 import { optimizeStopOrder } from "../routeOptimize";
 import { buildGoogleMapsRouteUrl } from "../googleMapsRoute";
 
+interface Stop {
+  id: number;
+  name: string;
+  address: string;
+}
+
 type BuildState = "idle" | "geocoding" | "error";
 
+let nextStopId = 1;
+
 export default function RoutePlanPage() {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [pastedText, setPastedText] = useState("");
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [stops, setStops] = useState<Stop[]>([]);
   const [buildState, setBuildState] = useState<BuildState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [orderedStops, setOrderedStops] = useState<{ name: string; address: string }[] | null>(null);
+  const [orderedStops, setOrderedStops] = useState<Stop[] | null>(null);
   const [mapsUrl, setMapsUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    api
-      .listJobs()
-      .then(setJobs)
-      .finally(() => setLoading(false));
-  }, []);
-
-  const routableJobs = useMemo(
-    () =>
-      jobs
-        .filter((job) => job.status === "awaiting")
-        .map((job) => ({
-          job,
-          name: extractCustomerName(job.rawTicketText) || `Job #${job.id}`,
-          address: extractAddress(job.rawTicketText),
-        }))
-        .filter((entry) => entry.address !== null) as { job: Job; name: string; address: string }[],
-    [jobs]
-  );
-
-  function toggleSelected(id: number) {
+  function resetRoute() {
     setOrderedStops(null);
     setMapsUrl(null);
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    setErrorMessage(null);
   }
 
-  async function handleBuildRoute() {
-    const selected = routableJobs.filter((entry) => selectedIds.includes(entry.job.id!));
-    if (selected.length < 2) return;
+  async function handlePasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) setPastedText(text);
+    } catch {
+      alert("Couldn't read the clipboard. Your browser may need permission, or there's nothing copied.");
+    }
+  }
+
+  function handleAddStop() {
+    const address = extractAddress(pastedText);
+    if (!address) {
+      setParseError("Couldn't find an address in that text — make sure the street, city, state, and zip are on their own line.");
+      return;
+    }
+    const name = extractCustomerName(pastedText) || `Stop ${stops.length + 1}`;
+    setStops((prev) => [...prev, { id: nextStopId++, name, address }]);
+    setPastedText("");
+    setParseError(null);
+    resetRoute();
+  }
+
+  function handleRemoveStop(id: number) {
+    setStops((prev) => prev.filter((s) => s.id !== id));
+    resetRoute();
+  }
+
+  async function handleCalculateRoute() {
+    if (stops.length < 2) return;
 
     setBuildState("geocoding");
     setErrorMessage(null);
@@ -54,20 +66,20 @@ export default function RoutePlanPage() {
     setMapsUrl(null);
 
     try {
-      const points = await geocodeAll(selected.map((entry) => entry.address));
-      const missing = selected.filter((_, i) => !points[i]);
+      const points = await geocodeAll(stops.map((s) => s.address));
+      const missing = stops.filter((_, i) => !points[i]);
       if (missing.length > 0) {
-        setErrorMessage(`Couldn't locate: ${missing.map((entry) => entry.name).join(", ")}`);
+        setErrorMessage(`Couldn't locate: ${missing.map((s) => s.name).join(", ")}`);
         setBuildState("error");
         return;
       }
 
       const validPoints = points as NonNullable<(typeof points)[number]>[];
       const order = optimizeStopOrder(validPoints);
-      const stops = order.map((i) => ({ name: selected[i].name, address: selected[i].address }));
+      const ordered = order.map((i) => stops[i]);
 
-      setOrderedStops(stops);
-      setMapsUrl(buildGoogleMapsRouteUrl(stops.map((s) => s.address)));
+      setOrderedStops(ordered);
+      setMapsUrl(buildGoogleMapsRouteUrl(ordered.map((s) => s.address)));
       setBuildState("idle");
     } catch {
       setErrorMessage("Something went wrong looking up those addresses. Try again.");
@@ -75,50 +87,67 @@ export default function RoutePlanPage() {
     }
   }
 
-  if (loading) return <p className="loading-text">Loading jobs...</p>;
-
-  if (routableJobs.length === 0) {
-    return (
-      <div className="empty-state">
-        <p>No awaiting jobs with a recognizable address yet.</p>
-        <p className="empty-hint">
-          Addresses are picked up automatically from the pasted job text — make sure the street, city,
-          state, and zip are on their own line.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="job-list">
-      <p className="empty-hint">Pick the stops for today's run, then build a route.</p>
+      <p className="empty-hint">Paste a job ticket, click Add, and repeat for each stop.</p>
 
-      <div className="job-cards">
-        {routableJobs.map(({ job, name, address }) => (
-          <label key={job.id} className="job-card checkbox-label" style={{ flexDirection: "row" }}>
-            <input
-              type="checkbox"
-              checked={selectedIds.includes(job.id!)}
-              onChange={() => toggleSelected(job.id!)}
-            />
-            <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <strong>{name}</strong>
-              <span className="empty-hint">{address}</span>
-              {job.scheduledDate && <span className="empty-hint">Scheduled {job.scheduledDate}</span>}
-            </span>
-          </label>
-        ))}
-      </div>
+      <form
+        className="job-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleAddStop();
+        }}
+      >
+        <label>
+          Paste job ticket
+          <textarea
+            rows={5}
+            value={pastedText}
+            onChange={(e) => {
+              setPastedText(e.target.value);
+              setParseError(null);
+            }}
+            placeholder="Paste the raw job ticket text here..."
+          />
+        </label>
+        <div className="jobs-toolbar" style={{ flexDirection: "row" }}>
+          <button type="button" className="btn btn-sm" onClick={handlePasteFromClipboard}>
+            📋 Paste from clipboard
+          </button>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={!pastedText.trim()}>
+            ➕ Add stop
+          </button>
+        </div>
+        {parseError && <p className="empty-hint">{parseError}</p>}
+      </form>
+
+      {stops.length > 0 && (
+        <div className="job-cards">
+          {stops.map((stop, i) => (
+            <div className="job-card" key={stop.id}>
+              <div className="job-card-top">
+                <strong>
+                  {i + 1}. {stop.name}
+                </strong>
+                <button type="button" className="btn btn-sm btn-danger" onClick={() => handleRemoveStop(stop.id)}>
+                  Remove
+                </button>
+              </div>
+              <span className="empty-hint">{stop.address}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <button
         type="button"
         className="btn btn-primary btn-block"
-        disabled={selectedIds.length < 2 || buildState === "geocoding"}
-        onClick={handleBuildRoute}
+        disabled={stops.length < 2 || buildState === "geocoding"}
+        onClick={handleCalculateRoute}
       >
         {buildState === "geocoding"
           ? "Looking up addresses..."
-          : `🧭 Build route (${selectedIds.length} stop${selectedIds.length === 1 ? "" : "s"})`}
+          : `🧭 Calculate route (${stops.length} stop${stops.length === 1 ? "" : "s"})`}
       </button>
 
       {errorMessage && <p className="empty-hint">{errorMessage}</p>}
@@ -129,8 +158,8 @@ export default function RoutePlanPage() {
             <h3>Suggested order</h3>
           </div>
           <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 4 }}>
-            {orderedStops.map((stop, i) => (
-              <li key={i}>
+            {orderedStops.map((stop) => (
+              <li key={stop.id}>
                 <strong>{stop.name}</strong> — <span className="empty-hint">{stop.address}</span>
               </li>
             ))}
