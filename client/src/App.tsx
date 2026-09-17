@@ -3,6 +3,7 @@ import JobListPage from "./pages/JobListPage";
 import JobFormPage from "./pages/JobFormPage";
 import InsightsPage from "./pages/InsightsPage";
 import GasLogPage from "./pages/GasLogPage";
+import RoutePlanPage from "./pages/RoutePlanPage";
 import SettingsPage from "./pages/SettingsPage";
 import BottomNav from "./components/BottomNav";
 import { BackIcon } from "./components/icons";
@@ -13,6 +14,7 @@ function pageTitle(pathname: string): string {
   if (pathname === "/insights") return "Insights";
   if (pathname === "/jobs") return "Jobs";
   if (pathname === "/gas") return "Gas Log";
+  if (pathname === "/route") return "Route Planner";
   if (pathname === "/settings") return "Settings";
   return "New Job";
 }
@@ -41,6 +43,7 @@ export default function App() {
             <Route path="/jobs" element={<JobListPage />} />
             <Route path="/jobs/:id/edit" element={<JobFormPage mode="edit" />} />
             <Route path="/gas" element={<GasLogPage />} />
+            <Route path="/route" element={<RoutePlanPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </main>
