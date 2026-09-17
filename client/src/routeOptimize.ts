@@ -10,25 +10,30 @@ function haversineKm(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-function routeLengthKm(order: number[], points: LatLng[]): number {
+// Length of anchor -> points[order[0]] -> points[order[1]] -> ... The leg from the anchor
+// only counts when one was given (e.g. the tech's current location) — without it, the
+// order is just scored on the legs between stops.
+function routeLengthKm(order: number[], points: LatLng[], anchor: LatLng | null): number {
   let total = 0;
-  for (let i = 0; i < order.length - 1; i++) {
-    total += haversineKm(points[order[i]], points[order[i + 1]]);
+  let prev = anchor;
+  for (const idx of order) {
+    if (prev) total += haversineKm(prev, points[idx]);
+    prev = points[idx];
   }
   return total;
 }
 
 // Untangles any crossing legs the nearest-neighbor pass leaves behind by repeatedly
 // reversing segments whenever that shortens the total route.
-function twoOpt(order: number[], points: LatLng[]): number[] {
+function twoOpt(order: number[], points: LatLng[], anchor: LatLng | null): number[] {
   let best = order;
   let improved = true;
   while (improved) {
     improved = false;
-    for (let i = 1; i < best.length - 2; i++) {
-      for (let j = i + 1; j < best.length - 1; j++) {
+    for (let i = 0; i < best.length - 1; i++) {
+      for (let j = i + 1; j < best.length; j++) {
         const candidate = [...best.slice(0, i), ...best.slice(i, j + 1).reverse(), ...best.slice(j + 1)];
-        if (routeLengthKm(candidate, points) < routeLengthKm(best, points)) {
+        if (routeLengthKm(candidate, points, anchor) < routeLengthKm(best, points, anchor)) {
           best = candidate;
           improved = true;
         }
@@ -38,23 +43,33 @@ function twoOpt(order: number[], points: LatLng[]): number[] {
   return best;
 }
 
-// Orders stops for a short driving route: a nearest-neighbor pass builds a starting
-// order from startIndex, then 2-opt cleans it up. Returns indices into `points`.
-export function optimizeStopOrder(points: LatLng[], startIndex = 0): number[] {
+// Orders stops for a short driving route. When `anchor` is given (the tech's current
+// location at the time the route is built), the route is ordered to start near there —
+// otherwise it starts from stop 0. A nearest-neighbor pass builds a starting order, then
+// 2-opt cleans it up. Returns indices into `points`.
+export function optimizeStopOrder(points: LatLng[], anchor: LatLng | null = null): number[] {
   const n = points.length;
-  if (n <= 2) return points.map((_, i) => i);
+  if (n === 0) return [];
+  if (n === 1) return [0];
 
   const visited = new Array(n).fill(false);
-  const order = [startIndex];
-  visited[startIndex] = true;
+  const order: number[] = [];
+  let current: LatLng;
 
-  for (let step = 1; step < n; step++) {
-    const last = order[order.length - 1];
+  if (anchor) {
+    current = anchor;
+  } else {
+    order.push(0);
+    visited[0] = true;
+    current = points[0];
+  }
+
+  while (order.length < n) {
     let nearest = -1;
     let nearestDist = Infinity;
     for (let i = 0; i < n; i++) {
       if (visited[i]) continue;
-      const d = haversineKm(points[last], points[i]);
+      const d = haversineKm(current, points[i]);
       if (d < nearestDist) {
         nearestDist = d;
         nearest = i;
@@ -62,7 +77,8 @@ export function optimizeStopOrder(points: LatLng[], startIndex = 0): number[] {
     }
     order.push(nearest);
     visited[nearest] = true;
+    current = points[nearest];
   }
 
-  return twoOpt(order, points);
+  return twoOpt(order, points, anchor);
 }

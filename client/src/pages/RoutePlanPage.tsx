@@ -4,6 +4,7 @@ import { extractAddress } from "../address";
 import { geocodeAll } from "../geocode";
 import { optimizeStopOrder } from "../routeOptimize";
 import { buildGoogleMapsRouteUrl } from "../googleMapsRoute";
+import { getCurrentLocation } from "../currentLocation";
 
 interface Stop {
   id: number;
@@ -58,7 +59,7 @@ export default function RoutePlanPage() {
   }
 
   async function handleCalculateRoute() {
-    if (stops.length < 2) return;
+    if (stops.length < 1) return;
 
     setBuildState("geocoding");
     setErrorMessage(null);
@@ -66,7 +67,13 @@ export default function RoutePlanPage() {
     setMapsUrl(null);
 
     try {
-      const points = await geocodeAll(stops.map((s) => s.address));
+      // The anchor only steers which stop order we suggest — the link itself always
+      // starts from wherever the device actually is when it's opened, resolved live by
+      // Google Maps, regardless of whether this lookup succeeds.
+      const [anchor, points] = await Promise.all([
+        getCurrentLocation(),
+        geocodeAll(stops.map((s) => s.address)),
+      ]);
       const missing = stops.filter((_, i) => !points[i]);
       if (missing.length > 0) {
         setErrorMessage(`Couldn't locate: ${missing.map((s) => s.name).join(", ")}`);
@@ -75,7 +82,7 @@ export default function RoutePlanPage() {
       }
 
       const validPoints = points as NonNullable<(typeof points)[number]>[];
-      const order = optimizeStopOrder(validPoints);
+      const order = optimizeStopOrder(validPoints, anchor);
       const ordered = order.map((i) => stops[i]);
 
       setOrderedStops(ordered);
@@ -142,7 +149,7 @@ export default function RoutePlanPage() {
       <button
         type="button"
         className="btn btn-primary btn-block"
-        disabled={stops.length < 2 || buildState === "geocoding"}
+        disabled={stops.length < 1 || buildState === "geocoding"}
         onClick={handleCalculateRoute}
       >
         {buildState === "geocoding"
@@ -156,6 +163,7 @@ export default function RoutePlanPage() {
         <div className="card">
           <div className="card-header">
             <h3>Suggested order</h3>
+            <span className="card-caption">Starts from your location</span>
           </div>
           <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 4 }}>
             {orderedStops.map((stop) => (
