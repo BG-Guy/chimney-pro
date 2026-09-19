@@ -137,9 +137,10 @@ export default function RoutePlanPage() {
       const validPoints = points as NonNullable<(typeof points)[number]>[];
       const order = optimizeStopOrder(validPoints, anchor);
       const ordered = order.map((i) => stops[i]);
+      const orderedPoints = order.map((i) => validPoints[i]);
 
       setOrderedStops(ordered);
-      setMapsUrl(buildGoogleMapsRouteUrl(ordered.map((s) => s.address)));
+      setMapsUrl(buildGoogleMapsRouteUrl(orderedPoints));
       setBuildState("idle");
     } catch {
       setErrorMessage("Something went wrong looking up those addresses. Try again.");
