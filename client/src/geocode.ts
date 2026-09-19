@@ -13,11 +13,18 @@ function delay(ms: number): Promise<void> {
 
 async function fetchCoordinates(address: string): Promise<LatLng | null> {
   const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) return null;
-  const results = (await res.json()) as Array<{ lat: string; lon: string }>;
-  const first = results[0];
-  return first ? { lat: Number(first.lat), lon: Number(first.lon) } : null;
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return null;
+    const results = (await res.json()) as Array<{ lat: string; lon: string }>;
+    const first = results[0];
+    return first ? { lat: Number(first.lat), lon: Number(first.lon) } : null;
+  } catch {
+    // A rejected fetch or a non-JSON response (Nominatim's free demo server occasionally
+    // returns an HTML "access denied" page instead of an error status) shouldn't take the
+    // rest of the batch down with it — this address just didn't resolve.
+    return null;
+  }
 }
 
 export async function geocodeAddress(address: string): Promise<LatLng | null> {

@@ -25,3 +25,18 @@ export function buildGoogleMapsRouteUrl(points: LatLng[]): string {
   if (waypoints.length > 0) params.set("waypoints", waypoints.map(toLatLngParam).join("|"));
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
+
+// Fallback for when our own geocoder (OpenStreetMap/Nominatim) couldn't confirm every
+// address — rather than block the route, hand Google Maps the raw address text and let
+// its own (more forgiving) geocoder resolve each stop, with "optimize:true" asking Maps
+// to pick the best visiting order itself instead of relying on our local one.
+export function buildGoogleMapsRouteUrlFromAddresses(addresses: string[]): string {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: addresses[addresses.length - 1],
+    travelmode: "driving",
+  });
+  const waypoints = addresses.slice(0, -1);
+  if (waypoints.length > 0) params.set("waypoints", `optimize:true|${waypoints.join("|")}`);
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}

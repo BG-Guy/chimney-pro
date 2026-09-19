@@ -4,7 +4,7 @@ import { extractAddress } from "../address";
 import { extractScheduledTime } from "../scheduledTime";
 import { geocodeAll } from "../geocode";
 import { optimizeStopOrder } from "../routeOptimize";
-import { buildGoogleMapsRouteUrl } from "../googleMapsRoute";
+import { buildGoogleMapsRouteUrl, buildGoogleMapsRouteUrlFromAddresses } from "../googleMapsRoute";
 import { getCurrentLocation } from "../currentLocation";
 
 interface Stop {
@@ -23,7 +23,7 @@ interface Draft {
   missingTime: boolean;
 }
 
-type BuildState = "idle" | "geocoding" | "error";
+type BuildState = "idle" | "geocoding";
 
 let nextStopId = 1;
 
@@ -33,16 +33,16 @@ export default function RoutePlanPage() {
   const [draftError, setDraftError] = useState<string | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [buildState, setBuildState] = useState<BuildState>("idle");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [failedStopIds, setFailedStopIds] = useState<number[]>([]);
+  const [noteMessage, setNoteMessage] = useState<string | null>(null);
   const [orderedStops, setOrderedStops] = useState<Stop[] | null>(null);
+  const [orderIsFinal, setOrderIsFinal] = useState(false);
   const [mapsUrl, setMapsUrl] = useState<string | null>(null);
 
   function resetRoute() {
     setOrderedStops(null);
     setMapsUrl(null);
-    setErrorMessage(null);
-    setFailedStopIds([]);
+    setNoteMessage(null);
+    setOrderIsFinal(false);
   }
 
   async function handlePasteFromClipboard() {
@@ -105,14 +105,29 @@ export default function RoutePlanPage() {
     resetRoute();
   }
 
+  // Our own geocoder (OpenStreetMap/Nominatim) is what lets us preview the visiting order
+  // before opening Maps, but it's a free best-effort service that regularly can't resolve a
+  // real address (postal city names like "Harleysville" often don't match OpenStreetMap's
+  // official township/borough names, and the service rate-limits or blocks outright under
+  // load). Rather than block the route on that, any stop it can't confirm falls back to
+  // handing Google Maps the raw addresses directly — Google's own geocoder is far more
+  // tolerant, and "optimize:true" asks it to work out the best order itself.
   async function handleCalculateRoute() {
     if (stops.length < 1) return;
 
     setBuildState("geocoding");
-    setErrorMessage(null);
-    setFailedStopIds([]);
+    setNoteMessage(null);
     setOrderedStops(null);
+    setOrderIsFinal(false);
     setMapsUrl(null);
+
+    function fallBackToGoogle(note: string) {
+      setOrderedStops(stops);
+      setOrderIsFinal(false);
+      setMapsUrl(buildGoogleMapsRouteUrlFromAddresses(stops.map((s) => s.address)));
+      setNoteMessage(note);
+      setBuildState("idle");
+    }
 
     try {
       // The anchor only steers which stop order we suggest — the link itself always
@@ -124,13 +139,9 @@ export default function RoutePlanPage() {
       ]);
       const missing = stops.filter((_, i) => !points[i]);
       if (missing.length > 0) {
-        setFailedStopIds(missing.map((s) => s.id));
-        setErrorMessage(
-          `Couldn't find a map location for ${missing.length === 1 ? "this address" : "these addresses"}: ${missing
-            .map((s) => `"${s.address}"`)
-            .join(", ")}. Double-check the street number, city, state, and 5-digit zip are correct and spelled right — the flagged stop(s) below can be removed and re-added with the fix.`
+        fallBackToGoogle(
+          "Couldn't preview the order for every stop locally, so Google Maps will look up addresses and pick the order itself when you open the link below."
         );
-        setBuildState("error");
         return;
       }
 
@@ -140,11 +151,13 @@ export default function RoutePlanPage() {
       const orderedPoints = order.map((i) => validPoints[i]);
 
       setOrderedStops(ordered);
+      setOrderIsFinal(true);
       setMapsUrl(buildGoogleMapsRouteUrl(orderedPoints));
       setBuildState("idle");
     } catch {
-      setErrorMessage("Something went wrong looking up those addresses. Try again.");
-      setBuildState("error");
+      fallBackToGoogle(
+        "Couldn't preview the order locally, so Google Maps will look up addresses and pick the order itself when you open the link below."
+      );
     }
   }
 
@@ -231,28 +244,20 @@ export default function RoutePlanPage() {
 
       {stops.length > 0 && (
         <div className="job-cards">
-          {stops.map((stop, i) => {
-            const failed = failedStopIds.includes(stop.id);
-            return (
-              <div
-                className="job-card"
-                key={stop.id}
-                style={failed ? { borderColor: "var(--critical)" } : undefined}
-              >
-                <div className="job-card-top">
-                  <strong>
-                    {i + 1}. {stop.name}
-                  </strong>
-                  <button type="button" className="btn btn-sm btn-danger" onClick={() => handleRemoveStop(stop.id)}>
-                    Remove
-                  </button>
-                </div>
-                <span className="empty-hint">{stop.address}</span>
-                {stop.time && <span className="empty-hint">📅 {stop.time}</span>}
-                {failed && <p className="overdue-callout">⚠️ Couldn't find this address on the map — check it's correct.</p>}
+          {stops.map((stop, i) => (
+            <div className="job-card" key={stop.id}>
+              <div className="job-card-top">
+                <strong>
+                  {i + 1}. {stop.name}
+                </strong>
+                <button type="button" className="btn btn-sm btn-danger" onClick={() => handleRemoveStop(stop.id)}>
+                  Remove
+                </button>
               </div>
-            );
-          })}
+              <span className="empty-hint">{stop.address}</span>
+              {stop.time && <span className="empty-hint">📅 {stop.time}</span>}
+            </div>
+          ))}
         </div>
       )}
 
@@ -267,13 +272,15 @@ export default function RoutePlanPage() {
           : `🧭 Calculate route (${stops.length} stop${stops.length === 1 ? "" : "s"})`}
       </button>
 
-      {errorMessage && <p className="empty-hint">{errorMessage}</p>}
+      {noteMessage && <p className="empty-hint">{noteMessage}</p>}
 
       {orderedStops && mapsUrl && (
         <div className="card">
           <div className="card-header">
-            <h3>Suggested order</h3>
-            <span className="card-caption">Starts from your location</span>
+            <h3>{orderIsFinal ? "Suggested order" : "Stops"}</h3>
+            <span className="card-caption">
+              {orderIsFinal ? "Starts from your location" : "Order picked by Google Maps when opened"}
+            </span>
           </div>
           <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 4 }}>
             {orderedStops.map((stop) => (
