@@ -2,7 +2,7 @@ import { useState } from "react";
 import { extractCustomerName } from "../customerName";
 import { extractAddress } from "../address";
 import { extractScheduledTime } from "../scheduledTime";
-import { geocodeAll } from "../geocode";
+import { geocodeAll, primeGeocodeCache, searchAddressCandidates, type AddressCandidate } from "../geocode";
 import { optimizeStopOrder } from "../routeOptimize";
 import { buildGoogleMapsRouteUrl, buildGoogleMapsRouteUrlFromAddresses } from "../googleMapsRoute";
 import { getCurrentLocation } from "../currentLocation";
@@ -37,12 +37,18 @@ export default function RoutePlanPage() {
   const [orderedStops, setOrderedStops] = useState<Stop[] | null>(null);
   const [orderIsFinal, setOrderIsFinal] = useState(false);
   const [mapsUrl, setMapsUrl] = useState<string | null>(null);
+  const [unresolvedStopIds, setUnresolvedStopIds] = useState<number[]>([]);
+  const [fixQueries, setFixQueries] = useState<Record<number, string>>({});
+  const [fixResults, setFixResults] = useState<Record<number, AddressCandidate[]>>({});
+  const [fixSearching, setFixSearching] = useState<Record<number, boolean>>({});
 
   function resetRoute() {
     setOrderedStops(null);
     setMapsUrl(null);
     setNoteMessage(null);
     setOrderIsFinal(false);
+    setUnresolvedStopIds([]);
+    setFixResults({});
   }
 
   async function handlePasteFromClipboard() {
@@ -120,12 +126,25 @@ export default function RoutePlanPage() {
     setOrderedStops(null);
     setOrderIsFinal(false);
     setMapsUrl(null);
+    setUnresolvedStopIds([]);
+    setFixResults({});
 
-    function fallBackToGoogle(note: string) {
+    function fallBackToGoogle(note: string, unresolvedIds: number[] = []) {
       setOrderedStops(stops);
       setOrderIsFinal(false);
       setMapsUrl(buildGoogleMapsRouteUrlFromAddresses(stops.map((s) => s.address)));
       setNoteMessage(note);
+      setUnresolvedStopIds(unresolvedIds);
+      if (unresolvedIds.length > 0) {
+        setFixQueries((prev) => {
+          const next = { ...prev };
+          for (const id of unresolvedIds) {
+            const stop = stops.find((s) => s.id === id);
+            if (stop) next[id] = stop.address;
+          }
+          return next;
+        });
+      }
       setBuildState("idle");
     }
 
@@ -140,7 +159,8 @@ export default function RoutePlanPage() {
       const missing = stops.filter((_, i) => !points[i]);
       if (missing.length > 0) {
         fallBackToGoogle(
-          "Couldn't preview the order for every stop locally, so Google Maps will look up addresses and pick the order itself when you open the link below."
+          "Couldn't preview the order for every stop locally, so Google Maps will look up addresses and pick the order itself when you open the link below. Or search for the flagged address below to fix the preview.",
+          missing.map((s) => s.id)
         );
         return;
       }
@@ -159,6 +179,41 @@ export default function RoutePlanPage() {
         "Couldn't preview the order locally, so Google Maps will look up addresses and pick the order itself when you open the link below."
       );
     }
+  }
+
+  // A stricter query missed, so offer a broader search instead of just giving up — most
+  // often it's a postal city name (e.g. "Harleysville") that doesn't match OpenStreetMap's
+  // actual township/borough name, so dropping it is usually the fix.
+  async function runFixSearch(stopId: number, query: string) {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    setFixSearching((prev) => ({ ...prev, [stopId]: true }));
+    try {
+      const results = await searchAddressCandidates(trimmed);
+      setFixResults((prev) => ({ ...prev, [stopId]: results }));
+    } finally {
+      setFixSearching((prev) => ({ ...prev, [stopId]: false }));
+    }
+  }
+
+  function handleTryWithoutCity(stopId: number) {
+    const stop = stops.find((s) => s.id === stopId);
+    if (!stop) return;
+    const parts = stop.address.split(",").map((p) => p.trim()).filter(Boolean);
+    const simplified = parts.length > 2 ? [parts[0], parts[parts.length - 1]].join(", ") : stop.address;
+    setFixQueries((prev) => ({ ...prev, [stopId]: simplified }));
+    void runFixSearch(stopId, simplified);
+  }
+
+  function handlePickCandidate(stopId: number, candidate: AddressCandidate) {
+    primeGeocodeCache(candidate.displayName, candidate.point);
+    setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, address: candidate.displayName } : s)));
+    setUnresolvedStopIds((prev) => prev.filter((id) => id !== stopId));
+    setFixResults((prev) => {
+      const next = { ...prev };
+      delete next[stopId];
+      return next;
+    });
   }
 
   return (
@@ -273,6 +328,65 @@ export default function RoutePlanPage() {
       </button>
 
       {noteMessage && <p className="empty-hint">{noteMessage}</p>}
+
+      {unresolvedStopIds.length > 0 && (
+        <div className="card">
+          <div className="card-header">
+            <h3>Help find these addresses</h3>
+          </div>
+          <p className="card-caption">
+            Our free map lookup couldn't confirm these — try simplifying the text (e.g. drop the city name)
+            and search again, then pick the right match. Matched stops drop off this list automatically.
+          </p>
+          {unresolvedStopIds.map((stopId) => {
+            const stop = stops.find((s) => s.id === stopId);
+            if (!stop) return null;
+            const results = fixResults[stopId];
+            const query = fixQueries[stopId] ?? stop.address;
+            return (
+              <div key={stopId} className="job-form" style={{ borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+                <p style={{ margin: 0, fontWeight: 600 }}>{stop.name}</p>
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setFixQueries((prev) => ({ ...prev, [stopId]: e.target.value }))}
+                />
+                <div className="jobs-toolbar" style={{ flexDirection: "row" }}>
+                  <button type="button" className="btn btn-sm" onClick={() => handleTryWithoutCity(stopId)}>
+                    Try without city
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={fixSearching[stopId]}
+                    onClick={() => runFixSearch(stopId, query)}
+                  >
+                    {fixSearching[stopId] ? "Searching..." : "🔍 Search"}
+                  </button>
+                </div>
+                {results && results.length > 0 && (
+                  <div className="jobs-toolbar">
+                    {results.map((c) => (
+                      <button
+                        type="button"
+                        key={c.displayName}
+                        className="btn btn-sm"
+                        style={{ textAlign: "left" }}
+                        onClick={() => handlePickCandidate(stopId, c)}
+                      >
+                        📍 {c.displayName}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {results && results.length === 0 && (
+                  <p className="empty-hint">No matches — try editing the text above.</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {orderedStops && mapsUrl && (
         <div className="card">

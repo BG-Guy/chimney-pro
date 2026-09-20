@@ -35,6 +35,38 @@ export async function geocodeAddress(address: string): Promise<LatLng | null> {
   return result;
 }
 
+// Lets a picked search candidate short-circuit the next automatic geocode pass instead of
+// spending another network round-trip re-confirming what the user just confirmed by hand.
+export function primeGeocodeCache(address: string, point: LatLng): void {
+  cache.set(address.trim().toLowerCase(), point);
+}
+
+export interface AddressCandidate {
+  displayName: string;
+  point: LatLng;
+}
+
+// A broader, multi-result search for when the exact pasted address doesn't match anything
+// — used to let the person narrow in on the right place by hand (e.g. a postal city name
+// like "Harleysville" that doesn't match OpenStreetMap's actual township/borough name, or a
+// typo) rather than just failing silently.
+export async function searchAddressCandidates(query: string): Promise<AddressCandidate[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(trimmed)}`;
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return [];
+    const results = (await res.json()) as Array<{ lat: string; lon: string; display_name: string }>;
+    return results.map((r) => ({
+      displayName: r.display_name,
+      point: { lat: Number(r.lat), lon: Number(r.lon) },
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // Geocodes one address at a time with a 1s gap, in line with Nominatim's free usage policy
 // (max 1 request/sec) — this is a free public service with no API key, not a bulk geocoder.
 export async function geocodeAll(addresses: string[]): Promise<(LatLng | null)[]> {
