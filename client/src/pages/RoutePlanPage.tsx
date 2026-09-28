@@ -12,6 +12,7 @@ interface Stop {
   name: string;
   address: string;
   time: string;
+  rawText: string;
 }
 
 type BuildState = "idle" | "geocoding";
@@ -32,6 +33,7 @@ export default function RoutePlanPage() {
   const [noAddressStops, setNoAddressStops] = useState<Stop[]>([]);
   const [placement, setPlacement] = useState<Record<number, number>>({});
   const [pointById, setPointById] = useState<Record<number, LatLng>>({});
+  const [expandedStopId, setExpandedStopId] = useState<number | null>(null);
 
   function resetRoute() {
     setNoteMessage(null);
@@ -61,6 +63,7 @@ export default function RoutePlanPage() {
         name: extractCustomerName(pastedText)?.trim() || `Stop ${prev.length + 1}`,
         address: extractAddress(pastedText)?.trim() ?? "",
         time: extractScheduledTime(pastedText)?.trim() ?? "",
+        rawText: pastedText.trim(),
       },
     ]);
     setPastedText("");
@@ -316,15 +319,43 @@ export default function RoutePlanPage() {
           <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 8 }}>
             {finalOrder.map((stop, i) => {
               const isUnscheduled = unscheduledStops.some((u) => u.id === stop.id);
+              const expanded = expandedStopId === stop.id;
               return (
                 <li key={stop.id}>
-                  <div>
-                    <strong>
-                      {i + 1}. {stop.name}
-                    </strong>{" "}
-                    — <span className="empty-hint">{isUnscheduled ? "manually placed" : timeLabel(stop)}</span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedStopId(expanded ? null : stop.id)}
+                    style={{
+                      all: "unset",
+                      display: "block",
+                      cursor: "pointer",
+                      width: "100%",
+                    }}
+                    aria-expanded={expanded}
+                  >
+                    <div>
+                      <strong>
+                        {expanded ? "▾" : "▸"} {i + 1}. {stop.name}
+                      </strong>{" "}
+                      — <span className="empty-hint">{isUnscheduled ? "manually placed" : timeLabel(stop)}</span>
+                    </div>
+                  </button>
                   <div className="empty-hint">{stop.address}</div>
+                  {expanded && (
+                    <p
+                      className="empty-hint"
+                      style={{
+                        whiteSpace: "pre-wrap",
+                        background: "var(--surface-2)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 10,
+                        padding: 10,
+                        marginTop: 6,
+                      }}
+                    >
+                      {stop.rawText || "No ticket text saved for this stop."}
+                    </p>
+                  )}
                   <a
                     href={buildGoogleMapsRouteUrl([pointById[stop.id] ?? stop.address])}
                     target="_blank"
