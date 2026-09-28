@@ -20,3 +20,19 @@ export function extractAddress(rawTicketText: string): string | null {
     .filter((line) => line.length > 0);
   return lines.find(looksLikeAddressLine) ?? null;
 }
+
+// A rough stand-in for an address our geocoder can't find — just the state and ZIP from
+// its last part ("Berlin, New Jersey 08009" -> "New Jersey 08009", "Berlin NJ 08009" ->
+// "NJ 08009"). Good enough to place the stop in the right area for ordering the route.
+export function zipAndStateOnly(address: string): string | null {
+  const parts = address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const match = parts[parts.length - 1]?.match(/^(.*?)\s*(\d{5})(-\d{4})?$/);
+  if (!match) return null;
+  const [, beforeZip, zip] = match;
+  const stateAbbrev = beforeZip.match(/\b[A-Z]{2}$/);
+  const state = stateAbbrev ? stateAbbrev[0] : beforeZip;
+  return state ? `${state} ${zip}` : zip;
+}
