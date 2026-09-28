@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { extractCustomerName } from "../customerName";
-import { extractAddress, zipAndStateOnly } from "../address";
-import { extractScheduledTime } from "../scheduledTime";
+import { extractAddress } from "../address";
+import { extractScheduledTime, parseScheduledStartMinutes } from "../scheduledTime";
 import { geocodeAll, type LatLng } from "../geocode";
 import { optimizeStopOrder } from "../routeOptimize";
-import { buildGoogleMapsRouteUrl, buildGoogleMapsRouteUrlFromAddresses } from "../googleMapsRoute";
+import { buildGoogleMapsRouteUrl } from "../googleMapsRoute";
 import { getCurrentLocation } from "../currentLocation";
 
 interface Stop {
@@ -12,15 +12,6 @@ interface Stop {
   name: string;
   address: string;
   time: string;
-}
-
-// A stop whose address couldn't be found automatically. `tempAddress` is the rough
-// "State ZIP" stand-in used in its place, or null when even that couldn't be worked out.
-interface UnfoundStop {
-  id: number;
-  name: string;
-  address: string;
-  tempAddress: string | null;
 }
 
 type BuildState = "idle" | "geocoding";
@@ -32,17 +23,23 @@ export default function RoutePlanPage() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [buildState, setBuildState] = useState<BuildState>("idle");
   const [noteMessage, setNoteMessage] = useState<string | null>(null);
-  const [orderedStops, setOrderedStops] = useState<Stop[] | null>(null);
-  const [orderIsFinal, setOrderIsFinal] = useState(false);
-  const [mapsUrl, setMapsUrl] = useState<string | null>(null);
-  const [unfoundStops, setUnfoundStops] = useState<UnfoundStop[]>([]);
+
+  // The time-sorted (and, within a tied start time, shortest-travel-sorted) order — fixed
+  // once "Calculate route" runs. Stops with no detectable time are handled separately
+  // below and merged in wherever the user manually places them.
+  const [timedOrder, setTimedOrder] = useState<Stop[] | null>(null);
+  const [unscheduledStops, setUnscheduledStops] = useState<Stop[]>([]);
+  const [noAddressStops, setNoAddressStops] = useState<Stop[]>([]);
+  const [placement, setPlacement] = useState<Record<number, number>>({});
+  const [pointById, setPointById] = useState<Record<number, LatLng>>({});
 
   function resetRoute() {
-    setOrderedStops(null);
-    setMapsUrl(null);
     setNoteMessage(null);
-    setOrderIsFinal(false);
-    setUnfoundStops([]);
+    setTimedOrder(null);
+    setUnscheduledStops([]);
+    setNoAddressStops([]);
+    setPlacement({});
+    setPointById({});
   }
 
   async function handlePasteFromClipboard() {
@@ -54,23 +51,20 @@ export default function RoutePlanPage() {
     }
   }
 
-  function commitStop(name: string, address: string, time: string) {
+  // Never stops to ask — whatever the ticket is missing, the stop is added with what was
+  // found, and it's flagged (no address) or handled (no time) once the route is built.
+  function handleAddStop() {
     setStops((prev) => [
       ...prev,
-      { id: nextStopId++, name: name.trim() || `Stop ${prev.length + 1}`, address: address.trim(), time: time.trim() },
+      {
+        id: nextStopId++,
+        name: extractCustomerName(pastedText)?.trim() || `Stop ${prev.length + 1}`,
+        address: extractAddress(pastedText)?.trim() ?? "",
+        time: extractScheduledTime(pastedText)?.trim() ?? "",
+      },
     ]);
     setPastedText("");
     resetRoute();
-  }
-
-  // Never stops to ask — whatever the ticket is missing, the stop is added with what was
-  // found. A stop with no address is left out of the route and flagged when it's built.
-  function handleAddStop() {
-    commitStop(
-      extractCustomerName(pastedText) ?? "",
-      extractAddress(pastedText) ?? "",
-      extractScheduledTime(pastedText) ?? ""
-    );
   }
 
   function handleRemoveStop(id: number) {
@@ -78,80 +72,113 @@ export default function RoutePlanPage() {
     resetRoute();
   }
 
-  // Our own geocoder (OpenStreetMap/Nominatim) is what lets us work out the visiting order
-  // before opening Maps, but it's a free best-effort service that regularly can't resolve a
-  // real address (postal city names like "Harleysville" often don't match OpenStreetMap's
-  // official township/borough names). Rather than stop and ask, any address it can't find
-  // is swapped for a temporary "State ZIP" stand-in — close enough to order the route — and
-  // the user is told which customers to fix up in Google Maps afterwards.
+  // Groups routable stops by scheduled start time (ascending), and within each tied group
+  // runs our nearest-neighbor + 2-opt pass to minimize driving between them — chained from
+  // wherever the route currently is (the tech's live location for the very first group,
+  // then the last stop placed so far). A stop whose address our free geocoder can't
+  // confirm just keeps its paste-order position within its group instead of blocking
+  // anything; Google Maps still finds it fine from the raw address text.
   async function handleCalculateRoute() {
     if (stops.length < 1) return;
 
     setBuildState("geocoding");
     resetRoute();
 
-    const routable = stops.filter((s) => s.address);
-    const noAddress: UnfoundStop[] = stops
-      .filter((s) => !s.address)
-      .map((s) => ({ id: s.id, name: s.name, address: "", tempAddress: null }));
-    if (routable.length === 0) {
-      setNoteMessage("None of the stops have an address, so there's no route to build.");
-      setUnfoundStops(noAddress);
+    const withAddress = stops.filter((s) => s.address);
+    const noAddress = stops.filter((s) => !s.address);
+    setNoAddressStops(noAddress);
+
+    if (withAddress.length === 0) {
+      setNoteMessage("None of these stops have an address, so there's no route to build.");
       setBuildState("idle");
       return;
     }
 
-    // Last resort, when even the ZIP stand-ins can't be placed: hand Google Maps the raw
-    // addresses and let it pick the order itself.
-    function fallBackToGoogle(note: string, unfound: UnfoundStop[] = []) {
-      setOrderedStops(routable);
-      setOrderIsFinal(false);
-      setMapsUrl(buildGoogleMapsRouteUrlFromAddresses(routable.map((s) => s.address)));
-      setNoteMessage(note);
-      setUnfoundStops([...unfound, ...noAddress]);
-      setBuildState("idle");
+    const timed = withAddress.filter((s) => parseScheduledStartMinutes(s.time || null) !== null);
+    const unscheduled = withAddress.filter((s) => parseScheduledStartMinutes(s.time || null) === null);
+    setUnscheduledStops(unscheduled);
+
+    const groups = new Map<number, Stop[]>();
+    for (const s of timed) {
+      const minutes = parseScheduledStartMinutes(s.time || null)!;
+      const group = groups.get(minutes);
+      if (group) group.push(s);
+      else groups.set(minutes, [s]);
     }
+    const sortedMinutes = [...groups.keys()].sort((a, b) => a - b);
 
     try {
-      // The anchor only steers which stop order we suggest — the link itself always
-      // starts from wherever the device actually is when it's opened, resolved live by
-      // Google Maps, regardless of whether this lookup succeeds.
-      const [anchor, points] = await Promise.all([
-        getCurrentLocation(),
-        geocodeAll(routable.map((s) => s.address)),
-      ]);
+      let anchor = await getCurrentLocation();
+      const finalOrder: Stop[] = [];
+      const resolvedPoints: Record<number, LatLng> = {};
+      let anyGeocodeFailed = false;
 
-      const unfound: UnfoundStop[] = routable
-        .filter((_, i) => !points[i])
-        .map((s) => ({ id: s.id, name: s.name, address: s.address, tempAddress: zipAndStateOnly(s.address) }));
-      const withTemp = unfound.filter((u) => u.tempAddress);
-      const tempPoints = await geocodeAll(withTemp.map((u) => u.tempAddress!));
-      const tempPointById = new Map(withTemp.map((u, i) => [u.id, tempPoints[i]]));
+      for (const minute of sortedMinutes) {
+        const group = groups.get(minute)!;
+        const points = await geocodeAll(group.map((s) => s.address));
 
-      const allPoints = routable.map((s, i) => points[i] ?? tempPointById.get(s.id) ?? null);
-      if (allPoints.some((p) => !p)) {
-        fallBackToGoogle(
-          "Some addresses couldn't be found automatically, even by ZIP code, so Google Maps will look them up and pick the order itself when you open the link below.",
-          unfound.map((u) => ({ ...u, tempAddress: null }))
-        );
-        return;
+        if (points.every((p): p is LatLng => p !== null)) {
+          const order = optimizeStopOrder(points, anchor);
+          for (const i of order) {
+            finalOrder.push(group[i]);
+            resolvedPoints[group[i].id] = points[i];
+          }
+          anchor = points[order[order.length - 1]];
+        } else {
+          anyGeocodeFailed = true;
+          group.forEach((s, i) => {
+            finalOrder.push(s);
+            if (points[i]) resolvedPoints[s.id] = points[i]!;
+          });
+          const lastResolved = [...points].reverse().find((p): p is LatLng => p !== null);
+          if (lastResolved) anchor = lastResolved;
+        }
       }
 
-      const validPoints = allPoints as LatLng[];
-      const order = optimizeStopOrder(validPoints, anchor);
-      const ordered = order.map((i) => routable[i]);
-      const tempAddressById = new Map(unfound.map((u) => [u.id, u.tempAddress!]));
-
-      setOrderedStops(ordered);
-      setOrderIsFinal(true);
-      setMapsUrl(buildGoogleMapsRouteUrl(order.map((i) => tempAddressById.get(routable[i].id) ?? validPoints[i])));
-      setUnfoundStops([...unfound, ...noAddress]);
+      setTimedOrder(finalOrder);
+      setPointById(resolvedPoints);
       setBuildState("idle");
+      if (anyGeocodeFailed) {
+        setNoteMessage(
+          "Some addresses couldn't be confirmed by our free map lookup, so those stops may not be in the exact shortest order within their time slot — Google Maps will still navigate to them fine."
+        );
+      }
     } catch {
-      fallBackToGoogle(
-        "Couldn't work out the order locally, so Google Maps will look up addresses and pick the order itself when you open the link below."
+      // Geolocation and geocoding both live behind network calls that can fail outright —
+      // the route is still valid sorted purely by time, just without the distance tie-break.
+      setTimedOrder(sortedMinutes.flatMap((m) => groups.get(m)!));
+      setNoteMessage(
+        "Couldn't look up travel distance between same-time stops, so they're left in a plain order — still sorted by scheduled time."
       );
+      setBuildState("idle");
     }
+  }
+
+  const finalOrder = useMemo(() => {
+    if (!timedOrder) return null;
+    const buckets: Stop[][] = Array.from({ length: timedOrder.length + 1 }, () => []);
+    for (const s of unscheduledStops) {
+      const pos = placement[s.id];
+      if (pos === undefined) continue;
+      buckets[pos].push(s);
+    }
+    const result: Stop[] = [];
+    for (let i = 0; i <= timedOrder.length; i++) {
+      result.push(...buckets[i]);
+      if (i < timedOrder.length) result.push(timedOrder[i]);
+    }
+    return result;
+  }, [timedOrder, unscheduledStops, placement]);
+
+  const unplacedCount = unscheduledStops.filter((s) => placement[s.id] === undefined).length;
+
+  const mapsUrl = useMemo(() => {
+    if (!finalOrder || finalOrder.length === 0) return null;
+    return buildGoogleMapsRouteUrl(finalOrder.map((s) => pointById[s.id] ?? s.address));
+  }, [finalOrder, pointById]);
+
+  function timeLabel(stop: Stop): string {
+    return stop.time || "No time found";
   }
 
   return (
@@ -197,7 +224,17 @@ export default function RoutePlanPage() {
                 </button>
               </div>
               <span className="empty-hint">{stop.address || "⚠️ No address found in the ticket"}</span>
-              {stop.time && <span className="empty-hint">📅 {stop.time}</span>}
+              <span className="empty-hint">📅 {timeLabel(stop)}</span>
+              {stop.address && (
+                <a
+                  href={buildGoogleMapsRouteUrl([stop.address])}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-sm"
+                >
+                  📍 Navigate to just this stop
+                </a>
+              )}
             </div>
           ))}
         </div>
@@ -210,55 +247,99 @@ export default function RoutePlanPage() {
         onClick={handleCalculateRoute}
       >
         {buildState === "geocoding"
-          ? "Looking up addresses..."
+          ? "Sorting by time..."
           : `🧭 Calculate route (${stops.length} stop${stops.length === 1 ? "" : "s"})`}
       </button>
 
       {noteMessage && <p className="empty-hint">{noteMessage}</p>}
 
-      {unfoundStops.length > 0 && (
+      {noAddressStops.length > 0 && (
         <div className="card">
           <div className="card-header">
-            <h3>⚠️ Addresses not found</h3>
+            <h3>⚠️ No address found</h3>
           </div>
-          <p className="card-caption">
-            {orderIsFinal
-              ? "These couldn't be found automatically. Where there was a ZIP code, a temporary address (state and ZIP only) was used instead, so the order is a rough guide — fix these stops in Google Maps."
-              : "These couldn't be found automatically — check these stops in Google Maps."}
-          </p>
-          <ul style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 4 }}>
-            {unfoundStops.map((u) => (
-              <li key={u.id}>
-                <strong>{u.name}</strong> —{" "}
-                <span className="empty-hint">{u.address || "no address in the ticket, left out of the route"}</span>
-                {u.tempAddress && <span className="empty-hint"> (temporarily: {u.tempAddress})</span>}
-              </li>
+          <p className="card-caption">These were left out of the route entirely — nothing to navigate to.</p>
+          <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+            {noAddressStops.map((s) => (
+              <li key={s.id}>{s.name}</li>
             ))}
           </ul>
         </div>
       )}
 
-      {orderedStops && mapsUrl && (
+      {unscheduledStops.length > 0 && timedOrder && (
         <div className="card">
           <div className="card-header">
-            <h3>{orderIsFinal ? "Suggested order" : "Stops"}</h3>
-            <span className="card-caption">
-              {orderIsFinal ? "Starts from your location" : "Order picked by Google Maps when opened"}
-            </span>
+            <h3>Place these manually</h3>
           </div>
-          <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 4 }}>
-            {orderedStops.map((stop) => {
-              const unfound = unfoundStops.find((u) => u.id === stop.id);
+          <p className="card-caption">No scheduled time was found for these — pick where each one fits in the route.</p>
+          {unscheduledStops.map((s) => (
+            <div key={s.id} className="jobs-toolbar" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <span style={{ flex: 1 }}>{s.name}</span>
+              <select
+                value={placement[s.id] ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setPlacement((prev) => {
+                    const next = { ...prev };
+                    if (v === "") delete next[s.id];
+                    else next[s.id] = Number(v);
+                    return next;
+                  });
+                }}
+              >
+                <option value="">Choose a spot…</option>
+                <option value={0}>At the start</option>
+                {timedOrder.map((t, i) => (
+                  <option key={t.id} value={i + 1}>
+                    After {i + 1}. {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+          {unplacedCount > 0 && (
+            <p className="empty-hint">
+              {unplacedCount} stop{unplacedCount === 1 ? "" : "s"} not placed yet — left out of the route below
+              until you choose a spot.
+            </p>
+          )}
+        </div>
+      )}
+
+      {finalOrder && finalOrder.length > 0 && mapsUrl && (
+        <div className="card">
+          <div className="card-header">
+            <h3>Route order</h3>
+            <span className="card-caption">Sorted by scheduled time, starts from your location</span>
+          </div>
+          <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 8 }}>
+            {finalOrder.map((stop, i) => {
+              const isUnscheduled = unscheduledStops.some((u) => u.id === stop.id);
               return (
                 <li key={stop.id}>
-                  <strong>{stop.name}</strong> — <span className="empty-hint">{stop.address}</span>
-                  {unfound && <span className="empty-hint"> ⚠️ not found{unfound.tempAddress && `, using ${unfound.tempAddress}`}</span>}
+                  <div>
+                    <strong>
+                      {i + 1}. {stop.name}
+                    </strong>{" "}
+                    — <span className="empty-hint">{isUnscheduled ? "manually placed" : timeLabel(stop)}</span>
+                  </div>
+                  <div className="empty-hint">{stop.address}</div>
+                  <a
+                    href={buildGoogleMapsRouteUrl([pointById[stop.id] ?? stop.address])}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-sm"
+                  >
+                    📍 Navigate to just this stop
+                  </a>
+                  <div style={{ height: 6 }} />
                 </li>
               );
             })}
           </ol>
           <a href={mapsUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-block">
-            📍 Open route in Google Maps
+            📍 Open full route in Google Maps
           </a>
         </div>
       )}
