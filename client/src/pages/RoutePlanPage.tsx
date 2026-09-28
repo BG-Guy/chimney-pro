@@ -220,74 +220,6 @@ export default function RoutePlanPage() {
     <div className="job-list">
       <p className="empty-hint">Paste a job ticket, click Add, and repeat for each stop.</p>
 
-      <button
-        type="button"
-        className="btn btn-block"
-        disabled={!savedRoute}
-        onClick={() => setShowSavedRoute((prev) => !prev)}
-      >
-        {showSavedRoute ? "Hide saved route" : "🗂️ Show saved route"}
-      </button>
-
-      {showSavedRoute && savedRoute && (
-        <div className="card">
-          <div className="card-header">
-            <h3>Saved route</h3>
-            <span className="card-caption">Saved {new Date(savedRoute.savedAt).toLocaleString()}</span>
-          </div>
-          <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 8 }}>
-            {savedRoute.stops.map((stop, i) => {
-              const expanded = savedExpandedStopId === stop.id;
-              return (
-                <li key={stop.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSavedExpandedStopId(expanded ? null : stop.id)}
-                    style={{ all: "unset", display: "block", cursor: "pointer", width: "100%" }}
-                    aria-expanded={expanded}
-                  >
-                    <div>
-                      <strong>
-                        {expanded ? "▾" : "▸"} {i + 1}. {stop.name}
-                      </strong>{" "}
-                      — <span className="empty-hint">{stop.time || "No time found"}</span>
-                    </div>
-                  </button>
-                  <div className="empty-hint">{stop.address}</div>
-                  {expanded && (
-                    <p
-                      className="empty-hint"
-                      style={{
-                        whiteSpace: "pre-wrap",
-                        background: "var(--surface-2)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 10,
-                        padding: 10,
-                        marginTop: 6,
-                      }}
-                    >
-                      {stop.rawText || "No ticket text saved for this stop."}
-                    </p>
-                  )}
-                  <a
-                    href={buildGoogleMapsRouteUrl([stop.address])}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-sm"
-                  >
-                    📍 Navigate to just this stop
-                  </a>
-                  <div style={{ height: 6 }} />
-                </li>
-              );
-            })}
-          </ol>
-          <a href={savedRoute.mapsUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-block">
-            📍 Open saved route in Google Maps
-          </a>
-        </div>
-      )}
-
       <form
         className="job-form"
         onSubmit={(e) => {
@@ -482,6 +414,74 @@ export default function RoutePlanPage() {
           <button type="button" className="btn btn-block" onClick={handleSaveRoute}>
             {justSaved ? "✅ Saved!" : "💾 Save this route"}
           </button>
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="btn btn-block"
+        disabled={!savedRoute}
+        onClick={() => setShowSavedRoute((prev) => !prev)}
+      >
+        {showSavedRoute ? "Hide saved route" : "🗂️ Show saved route"}
+      </button>
+
+      {showSavedRoute && savedRoute && (
+        <div className="card">
+          <div className="card-header">
+            <h3>Saved route</h3>
+            <span className="card-caption">Saved {new Date(savedRoute.savedAt).toLocaleString()}</span>
+          </div>
+          <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 8 }}>
+            {savedRoute.stops.map((stop, i) => {
+              const expanded = savedExpandedStopId === stop.id;
+              return (
+                <li key={stop.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSavedExpandedStopId(expanded ? null : stop.id)}
+                    style={{ all: "unset", display: "block", cursor: "pointer", width: "100%" }}
+                    aria-expanded={expanded}
+                  >
+                    <div>
+                      <strong>
+                        {expanded ? "▾" : "▸"} {i + 1}. {stop.name}
+                      </strong>{" "}
+                      — <span className="empty-hint">{stop.time || "No time found"}</span>
+                    </div>
+                  </button>
+                  <div className="empty-hint">{stop.address}</div>
+                  {expanded && (
+                    <p
+                      className="empty-hint"
+                      style={{
+                        whiteSpace: "pre-wrap",
+                        background: "var(--surface-2)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 10,
+                        padding: 10,
+                        marginTop: 6,
+                      }}
+                    >
+                      {stop.rawText || "No ticket text saved for this stop."}
+                    </p>
+                  )}
+                  <a
+                    href={buildGoogleMapsRouteUrl([stop.address])}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-sm"
+                  >
+                    📍 Navigate to just this stop
+                  </a>
+                  <div style={{ height: 6 }} />
+                </li>
+              );
+            })}
+          </ol>
+          <a href={savedRoute.mapsUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-block">
+            📍 Open saved route in Google Maps
+          </a>
         </div>
       )}
     </div>
