@@ -11,11 +11,16 @@ import type { LatLng } from "./geocode";
 // geocoder on plain address text, which occasionally disagrees with ours on messy or
 // abbreviated addresses and reports "address can't be found" even though we already
 // confirmed the address resolves — a coordinate has no parsing left to fail.
-function toLatLngParam(point: LatLng): string {
+//
+// A stop can also be given as plain text — used for a temporary "State ZIP" stand-in when
+// the real address couldn't be found, so it shows up in Maps as an obvious placeholder
+// the user can tap and replace with the real address.
+function toLatLngParam(point: LatLng | string): string {
+  if (typeof point === "string") return point;
   return `${point.lat.toFixed(6)},${point.lon.toFixed(6)}`;
 }
 
-export function buildGoogleMapsRouteUrl(points: LatLng[]): string {
+export function buildGoogleMapsRouteUrl(points: (LatLng | string)[]): string {
   const params = new URLSearchParams({
     api: "1",
     destination: toLatLngParam(points[points.length - 1]),

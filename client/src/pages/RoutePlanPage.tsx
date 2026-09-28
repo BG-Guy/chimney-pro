@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { extractCustomerName } from "../customerName";
-import { extractAddress } from "../address";
+import { extractAddress, zipAndStateOnly } from "../address";
 import { extractScheduledTime } from "../scheduledTime";
-import { geocodeAll, primeGeocodeCache, searchAddressCandidates, type AddressCandidate } from "../geocode";
+import { geocodeAll, type LatLng } from "../geocode";
 import { optimizeStopOrder } from "../routeOptimize";
 import { buildGoogleMapsRouteUrl, buildGoogleMapsRouteUrlFromAddresses } from "../googleMapsRoute";
 import { getCurrentLocation } from "../currentLocation";
@@ -23,6 +23,15 @@ interface Draft {
   missingTime: boolean;
 }
 
+// A stop whose address couldn't be found automatically. `tempAddress` is the rough
+// "State ZIP" stand-in used in its place, or null when even that couldn't be worked out.
+interface UnfoundStop {
+  id: number;
+  name: string;
+  address: string;
+  tempAddress: string | null;
+}
+
 type BuildState = "idle" | "geocoding";
 
 let nextStopId = 1;
@@ -37,18 +46,14 @@ export default function RoutePlanPage() {
   const [orderedStops, setOrderedStops] = useState<Stop[] | null>(null);
   const [orderIsFinal, setOrderIsFinal] = useState(false);
   const [mapsUrl, setMapsUrl] = useState<string | null>(null);
-  const [unresolvedStopIds, setUnresolvedStopIds] = useState<number[]>([]);
-  const [fixQueries, setFixQueries] = useState<Record<number, string>>({});
-  const [fixResults, setFixResults] = useState<Record<number, AddressCandidate[]>>({});
-  const [fixSearching, setFixSearching] = useState<Record<number, boolean>>({});
+  const [unfoundStops, setUnfoundStops] = useState<UnfoundStop[]>([]);
 
   function resetRoute() {
     setOrderedStops(null);
     setMapsUrl(null);
     setNoteMessage(null);
     setOrderIsFinal(false);
-    setUnresolvedStopIds([]);
-    setFixResults({});
+    setUnfoundStops([]);
   }
 
   async function handlePasteFromClipboard() {
@@ -111,40 +116,26 @@ export default function RoutePlanPage() {
     resetRoute();
   }
 
-  // Our own geocoder (OpenStreetMap/Nominatim) is what lets us preview the visiting order
+  // Our own geocoder (OpenStreetMap/Nominatim) is what lets us work out the visiting order
   // before opening Maps, but it's a free best-effort service that regularly can't resolve a
   // real address (postal city names like "Harleysville" often don't match OpenStreetMap's
-  // official township/borough names, and the service rate-limits or blocks outright under
-  // load). Rather than block the route on that, any stop it can't confirm falls back to
-  // handing Google Maps the raw addresses directly — Google's own geocoder is far more
-  // tolerant, and "optimize:true" asks it to work out the best order itself.
+  // official township/borough names). Rather than stop and ask, any address it can't find
+  // is swapped for a temporary "State ZIP" stand-in — close enough to order the route — and
+  // the user is told which customers to fix up in Google Maps afterwards.
   async function handleCalculateRoute() {
     if (stops.length < 1) return;
 
     setBuildState("geocoding");
-    setNoteMessage(null);
-    setOrderedStops(null);
-    setOrderIsFinal(false);
-    setMapsUrl(null);
-    setUnresolvedStopIds([]);
-    setFixResults({});
+    resetRoute();
 
-    function fallBackToGoogle(note: string, unresolvedIds: number[] = []) {
+    // Last resort, when even the ZIP stand-ins can't be placed: hand Google Maps the raw
+    // addresses and let it pick the order itself.
+    function fallBackToGoogle(note: string, unfound: UnfoundStop[] = []) {
       setOrderedStops(stops);
       setOrderIsFinal(false);
       setMapsUrl(buildGoogleMapsRouteUrlFromAddresses(stops.map((s) => s.address)));
       setNoteMessage(note);
-      setUnresolvedStopIds(unresolvedIds);
-      if (unresolvedIds.length > 0) {
-        setFixQueries((prev) => {
-          const next = { ...prev };
-          for (const id of unresolvedIds) {
-            const stop = stops.find((s) => s.id === id);
-            if (stop) next[id] = stop.address;
-          }
-          return next;
-        });
-      }
+      setUnfoundStops(unfound);
       setBuildState("idle");
     }
 
@@ -156,64 +147,38 @@ export default function RoutePlanPage() {
         getCurrentLocation(),
         geocodeAll(stops.map((s) => s.address)),
       ]);
-      const missing = stops.filter((_, i) => !points[i]);
-      if (missing.length > 0) {
+
+      const unfound: UnfoundStop[] = stops
+        .filter((_, i) => !points[i])
+        .map((s) => ({ id: s.id, name: s.name, address: s.address, tempAddress: zipAndStateOnly(s.address) }));
+      const withTemp = unfound.filter((u) => u.tempAddress);
+      const tempPoints = await geocodeAll(withTemp.map((u) => u.tempAddress!));
+      const tempPointById = new Map(withTemp.map((u, i) => [u.id, tempPoints[i]]));
+
+      const allPoints = stops.map((s, i) => points[i] ?? tempPointById.get(s.id) ?? null);
+      if (allPoints.some((p) => !p)) {
         fallBackToGoogle(
-          "Couldn't preview the order for every stop locally, so Google Maps will look up addresses and pick the order itself when you open the link below. Or search for the flagged address below to fix the preview.",
-          missing.map((s) => s.id)
+          "Some addresses couldn't be found automatically, even by ZIP code, so Google Maps will look them up and pick the order itself when you open the link below.",
+          unfound.map((u) => ({ ...u, tempAddress: null }))
         );
         return;
       }
 
-      const validPoints = points as NonNullable<(typeof points)[number]>[];
+      const validPoints = allPoints as LatLng[];
       const order = optimizeStopOrder(validPoints, anchor);
       const ordered = order.map((i) => stops[i]);
-      const orderedPoints = order.map((i) => validPoints[i]);
+      const tempAddressById = new Map(unfound.map((u) => [u.id, u.tempAddress!]));
 
       setOrderedStops(ordered);
       setOrderIsFinal(true);
-      setMapsUrl(buildGoogleMapsRouteUrl(orderedPoints));
+      setMapsUrl(buildGoogleMapsRouteUrl(order.map((i) => tempAddressById.get(stops[i].id) ?? validPoints[i])));
+      setUnfoundStops(unfound);
       setBuildState("idle");
     } catch {
       fallBackToGoogle(
-        "Couldn't preview the order locally, so Google Maps will look up addresses and pick the order itself when you open the link below."
+        "Couldn't work out the order locally, so Google Maps will look up addresses and pick the order itself when you open the link below."
       );
     }
-  }
-
-  // A stricter query missed, so offer a broader search instead of just giving up — most
-  // often it's a postal city name (e.g. "Harleysville") that doesn't match OpenStreetMap's
-  // actual township/borough name, so dropping it is usually the fix.
-  async function runFixSearch(stopId: number, query: string) {
-    const trimmed = query.trim();
-    if (!trimmed) return;
-    setFixSearching((prev) => ({ ...prev, [stopId]: true }));
-    try {
-      const results = await searchAddressCandidates(trimmed);
-      setFixResults((prev) => ({ ...prev, [stopId]: results }));
-    } finally {
-      setFixSearching((prev) => ({ ...prev, [stopId]: false }));
-    }
-  }
-
-  function handleTryWithoutCity(stopId: number) {
-    const stop = stops.find((s) => s.id === stopId);
-    if (!stop) return;
-    const parts = stop.address.split(",").map((p) => p.trim()).filter(Boolean);
-    const simplified = parts.length > 2 ? [parts[0], parts[parts.length - 1]].join(", ") : stop.address;
-    setFixQueries((prev) => ({ ...prev, [stopId]: simplified }));
-    void runFixSearch(stopId, simplified);
-  }
-
-  function handlePickCandidate(stopId: number, candidate: AddressCandidate) {
-    primeGeocodeCache(candidate.displayName, candidate.point);
-    setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, address: candidate.displayName } : s)));
-    setUnresolvedStopIds((prev) => prev.filter((id) => id !== stopId));
-    setFixResults((prev) => {
-      const next = { ...prev };
-      delete next[stopId];
-      return next;
-    });
   }
 
   return (
@@ -329,62 +294,24 @@ export default function RoutePlanPage() {
 
       {noteMessage && <p className="empty-hint">{noteMessage}</p>}
 
-      {unresolvedStopIds.length > 0 && (
+      {unfoundStops.length > 0 && (
         <div className="card">
           <div className="card-header">
-            <h3>Help find these addresses</h3>
+            <h3>⚠️ Addresses not found</h3>
           </div>
           <p className="card-caption">
-            Our free map lookup couldn't confirm these — try simplifying the text (e.g. drop the city name)
-            and search again, then pick the right match. Matched stops drop off this list automatically.
+            {orderIsFinal
+              ? "These couldn't be found automatically. A temporary address (state and ZIP only) was used instead, so the order is a rough guide — fix these stops in Google Maps."
+              : "These couldn't be found automatically — check these stops in Google Maps."}
           </p>
-          {unresolvedStopIds.map((stopId) => {
-            const stop = stops.find((s) => s.id === stopId);
-            if (!stop) return null;
-            const results = fixResults[stopId];
-            const query = fixQueries[stopId] ?? stop.address;
-            return (
-              <div key={stopId} className="job-form" style={{ borderTop: "1px solid var(--border)", paddingTop: 10 }}>
-                <p style={{ margin: 0, fontWeight: 600 }}>{stop.name}</p>
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setFixQueries((prev) => ({ ...prev, [stopId]: e.target.value }))}
-                />
-                <div className="jobs-toolbar" style={{ flexDirection: "row" }}>
-                  <button type="button" className="btn btn-sm" onClick={() => handleTryWithoutCity(stopId)}>
-                    Try without city
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    disabled={fixSearching[stopId]}
-                    onClick={() => runFixSearch(stopId, query)}
-                  >
-                    {fixSearching[stopId] ? "Searching..." : "🔍 Search"}
-                  </button>
-                </div>
-                {results && results.length > 0 && (
-                  <div className="jobs-toolbar">
-                    {results.map((c) => (
-                      <button
-                        type="button"
-                        key={c.displayName}
-                        className="btn btn-sm"
-                        style={{ textAlign: "left" }}
-                        onClick={() => handlePickCandidate(stopId, c)}
-                      >
-                        📍 {c.displayName}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {results && results.length === 0 && (
-                  <p className="empty-hint">No matches — try editing the text above.</p>
-                )}
-              </div>
-            );
-          })}
+          <ul style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 4 }}>
+            {unfoundStops.map((u) => (
+              <li key={u.id}>
+                <strong>{u.name}</strong> — <span className="empty-hint">{u.address}</span>
+                {u.tempAddress && <span className="empty-hint"> (temporarily: {u.tempAddress})</span>}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -397,11 +324,15 @@ export default function RoutePlanPage() {
             </span>
           </div>
           <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 4 }}>
-            {orderedStops.map((stop) => (
-              <li key={stop.id}>
-                <strong>{stop.name}</strong> — <span className="empty-hint">{stop.address}</span>
-              </li>
-            ))}
+            {orderedStops.map((stop) => {
+              const unfound = unfoundStops.find((u) => u.id === stop.id);
+              return (
+                <li key={stop.id}>
+                  <strong>{stop.name}</strong> — <span className="empty-hint">{stop.address}</span>
+                  {unfound && <span className="empty-hint"> ⚠️ not found{unfound.tempAddress && `, using ${unfound.tempAddress}`}</span>}
+                </li>
+              );
+            })}
           </ol>
           <a href={mapsUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-block">
             📍 Open route in Google Maps
