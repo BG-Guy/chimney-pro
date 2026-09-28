@@ -4,7 +4,7 @@ import { api } from "../api";
 import {
   CC_FEE_RATE,
   DEPOSIT_METHODS,
-  DEPOSIT_METHOD_ICON,
+  DEPOSIT_METHOD_EMOJI,
   balanceRemaining,
   cashOwedToCompany,
   emptyJob,
@@ -21,12 +21,11 @@ import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import DateButton from "../components/DateButton";
 import { todayISO } from "../dateUtils";
 import { formatMoney } from "../format";
-import { ClipboardIcon, WrenchIcon, WalletIcon, CheckCircleIcon, ClockIcon } from "../components/icons";
 
 const PAID_METHOD_OPTIONS: Choice<DepositMethod>[] = DEPOSIT_METHODS.map((m) => ({
   value: m,
   label: m,
-  icon: DEPOSIT_METHOD_ICON[m as Exclude<DepositMethod, "">],
+  emoji: DEPOSIT_METHOD_EMOJI[m as Exclude<DepositMethod, "">],
 }));
 
 export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
@@ -173,7 +172,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         />
       </label>
       <button type="button" className="btn btn-sm" onClick={handlePasteTicket}>
-        <ClipboardIcon size={16} /> Paste from clipboard
+        📋 Paste from clipboard
       </button>
 
       <label>
@@ -274,16 +273,8 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
 
       {(isDeposit || job.needsRepairTeam) && (
         <div className="ticket-tags-preview">
-          {isDeposit && (
-            <span className="deposit-badge">
-              <WalletIcon size={13} /> DEPOSIT
-            </span>
-          )}
-          {job.needsRepairTeam && (
-            <span className="repair-badge">
-              <WrenchIcon size={13} /> REPAIR TEAM
-            </span>
-          )}
+          {isDeposit && <span className="deposit-badge">💰 DEPOSIT</span>}
+          {job.needsRepairTeam && <span className="repair-badge">🔧 REPAIR TEAM</span>}
         </div>
       )}
 
@@ -321,9 +312,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
           className={`choice-box choice-box-sm${job.needsRepairTeam ? " selected" : ""}`}
           onClick={() => updateField("needsRepairTeam", !job.needsRepairTeam)}
         >
-          <span className="choice-icon">
-            <WrenchIcon size={20} />
-          </span>
+          <span className="choice-emoji">🔧</span>
           <span className="choice-label">Repair team needed</span>
         </button>
       </label>
@@ -350,18 +339,9 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         </label>
       )}
 
-      <p className="subtotal" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        Job status:
-        {isDone ? (
-          <>
-            <CheckCircleIcon size={16} /> Done — completed {paymentDateClearingBalance(job) ?? todayISO()}
-          </>
-        ) : (
-          <>
-            <ClockIcon size={16} /> Awaiting
-          </>
-        )}
-        <span className="form-hint">— set automatically once the balance is paid off</span>
+      <p className="subtotal">
+        Job status: {isDone ? `✅ Done — completed ${paymentDateClearingBalance(job) ?? todayISO()}` : "⏳ Awaiting"}
+        <span className="form-hint"> — set automatically once the balance is paid off</span>
       </p>
 
       <div className="form-actions">

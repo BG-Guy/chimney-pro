@@ -1,21 +1,15 @@
 :root {
   color-scheme: light dark;
-  font: 16px/1.5 "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
-  --surface-page: #f7f3ee;
-  --surface-1: #fffcf9;
+  --surface-page: #f0efec;
+  --surface-1: #fcfcfb;
   --surface-2: #ffffff;
-  --surface-3: #f3ede4;
-  --text-primary: #1a1512;
-  --text-secondary: #5c5147;
-  --text-muted: #96897a;
-  --border: #e9e0d3;
-  --border-strong: #d6c8b4;
-
-  --accent: #e35d2b;
-  --accent-hover: #c94e21;
-  --accent-text: #fff7f0;
-  --accent-bg: rgba(227, 93, 43, 0.1);
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --border: #e1e0d9;
+  --border-strong: #c3c2b7;
 
   --series-1: #2a78d6;
   --series-2: #eb6834;
@@ -26,46 +20,27 @@
   --series-7: #8b6fd6;
   --series-8: #d0393f;
 
-  --good: #158a3d;
-  --good-text: #0f6e30;
-  --good-bg: rgba(21, 138, 61, 0.12);
-  --warning: #c9820f;
-  --warning-bg: rgba(201, 130, 15, 0.14);
-  --critical: #c8402f;
-  --critical-bg: rgba(200, 64, 47, 0.12);
+  --good: #0ca30c;
+  --good-text: #006300;
+  --good-bg: rgba(12, 163, 12, 0.12);
+  --warning: #fab219;
+  --warning-bg: rgba(250, 178, 25, 0.16);
+  --critical: #d03b3b;
+  --critical-bg: rgba(208, 59, 59, 0.12);
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-pill: 999px;
-
-  --shadow-sm: 0 1px 2px rgba(35, 20, 8, 0.06), 0 1px 1px rgba(35, 20, 8, 0.04);
-  --shadow-md: 0 8px 24px rgba(35, 20, 8, 0.1), 0 2px 6px rgba(35, 20, 8, 0.06);
-  --shadow-lift: 0 14px 36px rgba(35, 20, 8, 0.16);
-
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
-  --dur-slow: 420ms;
+  --accent-bg: rgba(42, 120, 214, 0.1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface-page: #110d0a;
-    --surface-1: #1b1512;
-    --surface-2: #221b16;
-    --surface-3: #2b221c;
-    --text-primary: #f9f2ea;
-    --text-secondary: #cabca9;
-    --text-muted: #948473;
-    --border: #332822;
-    --border-strong: #493a30;
-
-    --accent: #ff7d47;
-    --accent-hover: #ff8f61;
-    --accent-text: #1c0f07;
-    --accent-bg: rgba(255, 125, 71, 0.16);
+    --surface-page: #000000;
+    --surface-1: #1a1a19;
+    --surface-2: #202020;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --border: #2c2c2a;
+    --border-strong: #383835;
 
     --series-1: #3987e5;
     --series-2: #d95926;
@@ -76,17 +51,15 @@
     --series-7: #9d84e0;
     --series-8: #e05056;
 
-    --good: #3fbf6e;
-    --good-text: #4fce7c;
-    --good-bg: rgba(63, 191, 110, 0.16);
-    --warning: #e0a233;
-    --warning-bg: rgba(224, 162, 51, 0.16);
-    --critical: #eb6f5c;
-    --critical-bg: rgba(235, 111, 92, 0.16);
+    --good: #0ca30c;
+    --good-text: #0ca30c;
+    --good-bg: rgba(12, 163, 12, 0.18);
+    --warning: #fab219;
+    --warning-bg: rgba(250, 178, 25, 0.16);
+    --critical: #e66767;
+    --critical-bg: rgba(230, 103, 103, 0.16);
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
-    --shadow-lift: 0 14px 36px rgba(0, 0, 0, 0.55);
+    --accent-bg: rgba(57, 135, 229, 0.16);
   }
 }
 
@@ -100,76 +73,7 @@ body {
   color: var(--text-primary);
 }
 
-h1,
-h2,
-h3 {
+h1, h2, h3 {
   font-weight: 600;
   margin: 0;
-  letter-spacing: -0.01em;
-}
-
-/* A tap/click target compresses slightly and eases back — applied broadly to anything
-   interactive so the whole app feels responsive to touch, not just the few spots that
-   opt in explicitly. */
-button,
-.btn,
-a.btn,
-.choice-box,
-.chip-pill,
-.tag-swatch,
-.job-number-chip {
-  transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-base) var(--ease-out),
-    border-color var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out),
-    box-shadow var(--dur-base) var(--ease-out);
-}
-
-button:active,
-.btn:active,
-a.btn:active,
-.choice-box:active,
-.chip-pill:active,
-.job-number-chip:active {
-  transform: scale(0.96);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: scale(0.92);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { TAG_COLORS, type Tag, type TagColor } from "../types";
-import { DownloadIcon, UploadIcon } from "../components/icons";
 
 export default function SettingsPage() {
   const [tags, setTags] = useState<Tag[]>([]);
@@ -84,16 +83,10 @@ export default function SettingsPage() {
         </p>
         <div className="form-actions">
           <button type="button" className="btn" onClick={handleExport}>
-            <DownloadIcon size={16} /> Export backup
+            ⬇️ Export backup
           </button>
           <button type="button" className="btn" onClick={handleImportClick} disabled={importing}>
-            {importing ? (
-              "Importing..."
-            ) : (
-              <>
-                <UploadIcon size={16} /> Import backup
-              </>
-            )}
+            {importing ? "Importing..." : "⬆️ Import backup"}
           </button>
         </div>
         <input

@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import {
-  DEPOSIT_METHOD_ICON,
-  LEAD_OUTCOME_ICON,
+  DEPOSIT_METHOD_EMOJI,
+  LEAD_OUTCOME_EMOJI,
   LEAD_OUTCOME_LABEL,
-  STATUS_ICON,
+  STATUS_EMOJI,
   balanceRemaining,
   cashOwedToCompany,
   jobTotal,
@@ -25,19 +25,6 @@ import { currentMonthOption, monthRangeISO, recentMonths, type MonthOption } fro
 import { addDays, fmtISO, inRange, startOfWeek } from "../dateUtils";
 import { downloadJobsCsv, totalCashInJobs } from "../jobsCsv";
 import { formatMoney } from "../format";
-import {
-  ArrowUpIcon,
-  HistoryIcon,
-  CalendarIcon,
-  CalendarDaysIcon,
-  DollarSignIcon,
-  ClipboardIcon,
-  WalletIcon,
-  WrenchIcon,
-  AlertTriangleIcon,
-  CheckCircleIcon,
-  DownloadIcon,
-} from "../components/icons";
 
 function isoToDate(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
@@ -58,23 +45,23 @@ function isOverdue(job: Job): boolean {
 type SortMode = "newest" | "oldest" | "scheduled" | "total";
 
 const SORT_OPTIONS: Choice<SortMode>[] = [
-  { value: "newest", label: "Newest", icon: ArrowUpIcon },
-  { value: "oldest", label: "Oldest", icon: HistoryIcon },
-  { value: "scheduled", label: "Scheduled", icon: CalendarIcon },
-  { value: "total", label: "Total", icon: DollarSignIcon },
+  { value: "newest", label: "Newest", emoji: "🆕" },
+  { value: "oldest", label: "Oldest", emoji: "📜" },
+  { value: "scheduled", label: "Scheduled", emoji: "📅" },
+  { value: "total", label: "Total", emoji: "💵" },
 ];
 
 const STATUS_FILTER_OPTIONS: Choice<JobStatus | "all">[] = [
-  { value: "all", label: "All", icon: ClipboardIcon },
-  { value: "awaiting", label: "Awaits", icon: STATUS_ICON.awaiting },
-  { value: "done", label: "Done", icon: STATUS_ICON.done },
+  { value: "all", label: "All", emoji: "📋" },
+  { value: "awaiting", label: "Awaits", emoji: STATUS_EMOJI.awaiting },
+  { value: "done", label: "Done", emoji: STATUS_EMOJI.done },
 ];
 
 type PaycheckMode = "range" | "month";
 
 const PAYCHECK_MODE_OPTIONS: Choice<PaycheckMode>[] = [
-  { value: "range", label: "Date range", icon: CalendarIcon },
-  { value: "month", label: "Month", icon: CalendarDaysIcon },
+  { value: "range", label: "Date range", emoji: "📅" },
+  { value: "month", label: "Month", emoji: "🗓️" },
 ];
 
 function sortJobsBy(jobs: Job[], mode: SortMode): Job[] {
@@ -265,7 +252,7 @@ export default function JobListPage() {
           className={`chip-pill${paycheckFilterOn ? " selected" : ""}`}
           onClick={() => setPaycheckFilterOn((prev) => !prev)}
         >
-          <WalletIcon size={16} /> Paycheck report
+          💸 Paycheck report
         </button>
 
         {paycheckFilterOn && (
@@ -308,7 +295,7 @@ export default function JobListPage() {
                 )
               }
             >
-              <DownloadIcon size={16} /> Export paycheck report
+              ⬇️ Export paycheck report
             </button>
           </>
         )}
@@ -329,7 +316,6 @@ export default function JobListPage() {
           {visibleJobs.map((job) => {
             const overdue = isOverdue(job);
             const outcome = job.leadOutcome;
-            const OutcomeIcon = LEAD_OUTCOME_ICON[outcome];
             const ticketNumber = extractTicketNumber(job.rawTicketText);
             const customerName = extractCustomerName(job.rawTicketText);
             return (
@@ -338,39 +324,21 @@ export default function JobListPage() {
                 <div className="job-card-top">
                   <div className="job-card-top-left">
                     <span className={`status-tag ${job.status}${overdue ? " overdue" : ""}`}>
-                      {job.status === "done" ? (
-                        <>
-                          <CheckCircleIcon size={13} /> Job done
-                        </>
-                      ) : overdue ? (
-                        <>
-                          <AlertTriangleIcon size={13} /> Overdue
-                        </>
-                      ) : (
-                        <>
-                          <STATUS_ICON.awaiting size={13} /> Job awaits
-                        </>
-                      )}
+                      {job.status === "done"
+                        ? `${STATUS_EMOJI.done} Job done`
+                        : overdue
+                          ? "⚠️ Overdue"
+                          : `${STATUS_EMOJI.awaiting} Job awaits`}
                     </span>
                     {ticketNumber && (
                       <button type="button" className="job-number-chip" onClick={() => handleCopyNumber(job, ticketNumber)}>
                         {copiedNumberId === job.id ? "Copied!" : `#${ticketNumber}`}
                       </button>
                     )}
-                    {outcome === "deposit" && (
-                      <span className="deposit-badge">
-                        <WalletIcon size={13} /> Got Deposit
-                      </span>
-                    )}
-                    {job.needsRepairTeam && (
-                      <span className="repair-badge">
-                        <WrenchIcon size={13} /> Repair Team
-                      </span>
-                    )}
+                    {outcome === "deposit" && <span className="deposit-badge">💰 Got Deposit</span>}
+                    {job.needsRepairTeam && <span className="repair-badge">🔧 Repair Team</span>}
                     {jobTotal(job) > 0 && balanceRemaining(job) <= 0 && (
-                      <span className="paid-off-badge">
-                        <CheckCircleIcon size={13} /> Ready for payout
-                      </span>
+                      <span className="paid-off-badge">💸 Ready for payout</span>
                     )}
                   </div>
                   <span className="job-card-total">{formatMoney(jobTotal(job))}</span>
@@ -383,14 +351,12 @@ export default function JobListPage() {
                   </div>
                   <div>
                     <dt>Paid</dt>
-                    <dd style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                    <dd>
                       {totalPaid(job) ? formatMoney(totalPaid(job)) : "—"}
                       {job.payments
                         .filter((p) => p.amount && p.method)
-                        .map((p, i) => {
-                          const MethodIcon = DEPOSIT_METHOD_ICON[p.method as Exclude<typeof p.method, "">];
-                          return <MethodIcon key={i} size={13} />;
-                        })}
+                        .map((p) => ` ${DEPOSIT_METHOD_EMOJI[p.method as Exclude<typeof p.method, "">]}`)
+                        .join("")}
                     </dd>
                   </div>
                   <div>
@@ -407,9 +373,8 @@ export default function JobListPage() {
                   </div>
                   <div>
                     <dt>Outcome</dt>
-                    <dd style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <OutcomeIcon size={13} />
-                      {LEAD_OUTCOME_LABEL[outcome]}
+                    <dd>
+                      {LEAD_OUTCOME_EMOJI[outcome]} {LEAD_OUTCOME_LABEL[outcome]}
                     </dd>
                   </div>
                 </dl>

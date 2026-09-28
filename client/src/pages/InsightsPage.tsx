@@ -12,8 +12,7 @@ import {
 } from "../dateBuckets";
 import { addDays, computeDateRanges, fmtISO } from "../dateUtils";
 import MonthWeekPicker from "../components/MonthWeekPicker";
-import { DEPOSIT_METHOD_ICON, type GasLog, type Job } from "../types";
-import { DownloadIcon } from "../components/icons";
+import { DEPOSIT_METHOD_EMOJI, type GasLog, type Job } from "../types";
 import { formatCompactMoney, formatMoney } from "../format";
 
 function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -201,12 +200,10 @@ function PaidMethods({ counts }: { counts: Insights["paidMethodCounts"] }) {
       <div className="method-bars">
         {entries
           .sort((a, b) => b[1] - a[1])
-          .map(([method, count]) => {
-            const MethodIcon = DEPOSIT_METHOD_ICON[method as keyof typeof DEPOSIT_METHOD_ICON];
-            return (
+          .map(([method, count]) => (
             <div className="method-bar-row" key={method}>
               <span className="method-bar-label">
-                <MethodIcon size={14} /> {method}
+                {DEPOSIT_METHOD_EMOJI[method as keyof typeof DEPOSIT_METHOD_EMOJI]} {method}
               </span>
               <div className="method-bar-track">
                 <div
@@ -216,8 +213,7 @@ function PaidMethods({ counts }: { counts: Insights["paidMethodCounts"] }) {
               </div>
               <span className="method-bar-count">{count}</span>
             </div>
-            );
-          })}
+          ))}
       </div>
     </div>
   );
@@ -322,7 +318,7 @@ function QuickInsightsReport({ jobs, gasLogs }: { jobs: Job[]; gasLogs: GasLog[]
           )}
 
           <button type="button" className="btn" onClick={() => downloadWeeklyReportCsv(report)}>
-<DownloadIcon size={16} /> Export CSV
+            ⬇️ Export CSV
           </button>
         </>
       )}
