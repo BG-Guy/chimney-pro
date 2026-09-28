@@ -1,7 +1,9 @@
+import type { ComponentType } from "react";
+
 export interface Choice<T extends string> {
   value: T;
   label: string;
-  emoji: string;
+  icon: ComponentType<{ size?: number }>;
 }
 
 export default function ChoiceBoxes<T extends string>({
@@ -21,6 +23,7 @@ export default function ChoiceBoxes<T extends string>({
     <div className="choice-boxes">
       {options.map((opt) => {
         const selected = value === opt.value;
+        const Icon = opt.icon;
         return (
           <button
             key={opt.value}
@@ -34,7 +37,9 @@ export default function ChoiceBoxes<T extends string>({
               }
             }}
           >
-            <span className="choice-emoji">{opt.emoji}</span>
+            <span className="choice-icon">
+              <Icon size={20} />
+            </span>
             <span className="choice-label">{opt.label}</span>
           </button>
         );

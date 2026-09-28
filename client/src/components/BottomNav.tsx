@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { motion } from "framer-motion";
 import { PlusCircleIcon, ChartIcon, ListIcon, FuelIcon, MapPinIcon, SettingsIcon } from "./icons";
 
 const TABS = [
@@ -19,8 +20,24 @@ export default function BottomNav() {
           to={to}
           className={({ isActive }) => `bottom-nav-item${isActive ? " active" : ""}`}
         >
-          <Icon size={22} />
-          <span>{label}</span>
+          {({ isActive }) =>
+            isActive ? (
+              <>
+                <motion.div
+                  className="bottom-nav-pill"
+                  layoutId="bottom-nav-pill"
+                  transition={{ type: "spring", stiffness: 500, damping: 34 }}
+                />
+                <Icon size={22} />
+                <span>{label}</span>
+              </>
+            ) : (
+              <>
+                <Icon size={22} />
+                <span>{label}</span>
+              </>
+            )
+          }
         </NavLink>
       ))}
     </nav>
