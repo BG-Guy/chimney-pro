@@ -33,6 +33,7 @@ export default function RoutePlanPage() {
   const [noAddressStops, setNoAddressStops] = useState<Stop[]>([]);
   const [placement, setPlacement] = useState<Record<number, number>>({});
   const [pointById, setPointById] = useState<Record<number, LatLng>>({});
+  const [notFoundStopIds, setNotFoundStopIds] = useState<number[]>([]);
   const [expandedStopId, setExpandedStopId] = useState<number | null>(null);
 
   function resetRoute() {
@@ -42,6 +43,7 @@ export default function RoutePlanPage() {
     setNoAddressStops([]);
     setPlacement({});
     setPointById({});
+    setNotFoundStopIds([]);
   }
 
   async function handlePasteFromClipboard() {
@@ -114,7 +116,7 @@ export default function RoutePlanPage() {
       let anchor = await getCurrentLocation();
       const finalOrder: Stop[] = [];
       const resolvedPoints: Record<number, LatLng> = {};
-      let anyGeocodeFailed = false;
+      const failedIds: number[] = [];
 
       for (const minute of sortedMinutes) {
         const group = groups.get(minute)!;
@@ -128,10 +130,10 @@ export default function RoutePlanPage() {
           }
           anchor = points[order[order.length - 1]];
         } else {
-          anyGeocodeFailed = true;
           group.forEach((s, i) => {
             finalOrder.push(s);
             if (points[i]) resolvedPoints[s.id] = points[i]!;
+            else failedIds.push(s.id);
           });
           const lastResolved = [...points].reverse().find((p): p is LatLng => p !== null);
           if (lastResolved) anchor = lastResolved;
@@ -140,16 +142,19 @@ export default function RoutePlanPage() {
 
       setTimedOrder(finalOrder);
       setPointById(resolvedPoints);
+      setNotFoundStopIds(failedIds);
       setBuildState("idle");
-      if (anyGeocodeFailed) {
+      if (failedIds.length > 0) {
         setNoteMessage(
-          "Some addresses couldn't be confirmed by our free map lookup, so those stops may not be in the exact shortest order within their time slot — Google Maps will still navigate to them fine."
+          `${failedIds.length} stop${failedIds.length === 1 ? "" : "s"} couldn't be confirmed by our free map lookup, so ${failedIds.length === 1 ? "it" : "they"} may not be in the exact shortest order within its time slot — flagged below. Google Maps will still navigate to ${failedIds.length === 1 ? "it" : "them"} fine from the address text.`
         );
       }
     } catch {
       // Geolocation and geocoding both live behind network calls that can fail outright —
       // the route is still valid sorted purely by time, just without the distance tie-break.
-      setTimedOrder(sortedMinutes.flatMap((m) => groups.get(m)!));
+      const flatOrder = sortedMinutes.flatMap((m) => groups.get(m)!);
+      setTimedOrder(flatOrder);
+      setNotFoundStopIds(flatOrder.map((s) => s.id));
       setNoteMessage(
         "Couldn't look up travel distance between same-time stops, so they're left in a plain order — still sorted by scheduled time."
       );
@@ -319,6 +324,7 @@ export default function RoutePlanPage() {
           <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 8 }}>
             {finalOrder.map((stop, i) => {
               const isUnscheduled = unscheduledStops.some((u) => u.id === stop.id);
+              const notFound = notFoundStopIds.includes(stop.id);
               const expanded = expandedStopId === stop.id;
               return (
                 <li key={stop.id}>
@@ -341,6 +347,12 @@ export default function RoutePlanPage() {
                     </div>
                   </button>
                   <div className="empty-hint">{stop.address}</div>
+                  {notFound && (
+                    <p className="overdue-callout">
+                      ⚠️ Couldn't be found on the free map tool — order isn't guaranteed for this stop, but the
+                      "Navigate" link below still sends Google Maps the address directly.
+                    </p>
+                  )}
                   {expanded && (
                     <p
                       className="empty-hint"
