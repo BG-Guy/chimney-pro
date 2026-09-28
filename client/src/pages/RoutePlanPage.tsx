@@ -6,6 +6,7 @@ import { geocodeAll, type LatLng } from "../geocode";
 import { optimizeStopOrder } from "../routeOptimize";
 import { buildGoogleMapsRouteUrl } from "../googleMapsRoute";
 import { getCurrentLocation } from "../currentLocation";
+import { saveRoute, loadSavedRoute, type SavedRoute } from "../savedRoute";
 
 interface Stop {
   id: number;
@@ -35,6 +36,11 @@ export default function RoutePlanPage() {
   const [pointById, setPointById] = useState<Record<number, LatLng>>({});
   const [notFoundStopIds, setNotFoundStopIds] = useState<number[]>([]);
   const [expandedStopId, setExpandedStopId] = useState<number | null>(null);
+
+  const [savedRoute, setSavedRoute] = useState<SavedRoute | null>(() => loadSavedRoute());
+  const [showSavedRoute, setShowSavedRoute] = useState(false);
+  const [savedExpandedStopId, setSavedExpandedStopId] = useState<number | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
 
   function resetRoute() {
     setNoteMessage(null);
@@ -162,6 +168,27 @@ export default function RoutePlanPage() {
     }
   }
 
+  // Only one route is ever saved — saving again just overwrites it, which is exactly what
+  // "start a new route and save it" is supposed to do.
+  function handleSaveRoute() {
+    if (!finalOrder || !mapsUrl) return;
+    const route: SavedRoute = {
+      savedAt: new Date().toISOString(),
+      stops: finalOrder.map((s) => ({
+        id: s.id,
+        name: s.name,
+        address: s.address,
+        time: s.time,
+        rawText: s.rawText,
+      })),
+      mapsUrl,
+    };
+    saveRoute(route);
+    setSavedRoute(route);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 1500);
+  }
+
   const finalOrder = useMemo(() => {
     if (!timedOrder) return null;
     const buckets: Stop[][] = Array.from({ length: timedOrder.length + 1 }, () => []);
@@ -192,6 +219,74 @@ export default function RoutePlanPage() {
   return (
     <div className="job-list">
       <p className="empty-hint">Paste a job ticket, click Add, and repeat for each stop.</p>
+
+      <button
+        type="button"
+        className="btn btn-block"
+        disabled={!savedRoute}
+        onClick={() => setShowSavedRoute((prev) => !prev)}
+      >
+        {showSavedRoute ? "Hide saved route" : "🗂️ Show saved route"}
+      </button>
+
+      {showSavedRoute && savedRoute && (
+        <div className="card">
+          <div className="card-header">
+            <h3>Saved route</h3>
+            <span className="card-caption">Saved {new Date(savedRoute.savedAt).toLocaleString()}</span>
+          </div>
+          <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 8 }}>
+            {savedRoute.stops.map((stop, i) => {
+              const expanded = savedExpandedStopId === stop.id;
+              return (
+                <li key={stop.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSavedExpandedStopId(expanded ? null : stop.id)}
+                    style={{ all: "unset", display: "block", cursor: "pointer", width: "100%" }}
+                    aria-expanded={expanded}
+                  >
+                    <div>
+                      <strong>
+                        {expanded ? "▾" : "▸"} {i + 1}. {stop.name}
+                      </strong>{" "}
+                      — <span className="empty-hint">{stop.time || "No time found"}</span>
+                    </div>
+                  </button>
+                  <div className="empty-hint">{stop.address}</div>
+                  {expanded && (
+                    <p
+                      className="empty-hint"
+                      style={{
+                        whiteSpace: "pre-wrap",
+                        background: "var(--surface-2)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 10,
+                        padding: 10,
+                        marginTop: 6,
+                      }}
+                    >
+                      {stop.rawText || "No ticket text saved for this stop."}
+                    </p>
+                  )}
+                  <a
+                    href={buildGoogleMapsRouteUrl([stop.address])}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-sm"
+                  >
+                    📍 Navigate to just this stop
+                  </a>
+                  <div style={{ height: 6 }} />
+                </li>
+              );
+            })}
+          </ol>
+          <a href={savedRoute.mapsUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-block">
+            📍 Open saved route in Google Maps
+          </a>
+        </div>
+      )}
 
       <form
         className="job-form"
@@ -384,6 +479,9 @@ export default function RoutePlanPage() {
           <a href={mapsUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-block">
             📍 Open full route in Google Maps
           </a>
+          <button type="button" className="btn btn-block" onClick={handleSaveRoute}>
+            {justSaved ? "✅ Saved!" : "💾 Save this route"}
+          </button>
         </div>
       )}
     </div>
