@@ -1,4 +1,19 @@
 import { todayISO } from "./dateUtils";
+import type { ComponentType } from "react";
+import {
+  BanIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  CreditCardIcon,
+  DollarSignIcon,
+  FileTextIcon,
+  WalletIcon,
+  ReceiptIcon,
+  ZapIcon,
+  CircleDotIcon,
+} from "./components/icons";
+
+type Icon = ComponentType<{ size?: number }>;
 
 export type DepositMethod = "CC" | "Check" | "Zelle" | "Cash" | "Other" | "";
 export type JobStatus = "awaiting" | "done";
@@ -37,23 +52,23 @@ export interface Job {
 
 export const DEPOSIT_METHODS: DepositMethod[] = ["CC", "Check", "Zelle", "Cash", "Other"];
 
-export const DEPOSIT_METHOD_EMOJI: Record<Exclude<DepositMethod, "">, string> = {
-  CC: "💳",
-  Check: "🧾",
-  Zelle: "⚡",
-  Cash: "💵",
-  Other: "🔘",
+export const DEPOSIT_METHOD_ICON: Record<Exclude<DepositMethod, "">, Icon> = {
+  CC: CreditCardIcon,
+  Check: ReceiptIcon,
+  Zelle: ZapIcon,
+  Cash: DollarSignIcon,
+  Other: CircleDotIcon,
 };
 
-export const STATUS_EMOJI: Record<JobStatus, string> = {
-  awaiting: "⏳",
-  done: "✅",
+export const STATUS_ICON: Record<JobStatus, Icon> = {
+  awaiting: ClockIcon,
+  done: CheckCircleIcon,
 };
 
-export const LEAD_OUTCOME_EMOJI: Record<LeadOutcome, string> = {
-  estimate: "📝",
-  deposit: "💰",
-  no_estimate: "🚫",
+export const LEAD_OUTCOME_ICON: Record<LeadOutcome, Icon> = {
+  estimate: FileTextIcon,
+  deposit: WalletIcon,
+  no_estimate: BanIcon,
 };
 
 export const LEAD_OUTCOME_LABEL: Record<LeadOutcome, string> = {

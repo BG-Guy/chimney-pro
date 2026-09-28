@@ -278,7 +278,9 @@
 }
 
 .status-tag {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   border: none;
   border-radius: 999px;
   padding: 5px 12px;
@@ -286,6 +288,11 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+}
+
+.status-tag svg {
+  width: 13px;
+  height: 13px;
 }
 
 .status-tag.done {
@@ -423,8 +430,10 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 .choice-emoji {
-  font-size: 1.35rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
 }
 
 .choice-label {
@@ -445,8 +454,9 @@ input[type="number"]::-webkit-inner-spin-button {
   flex-direction: row;
 }
 
-.choice-box-sm .choice-emoji {
-  font-size: 1rem;
+.choice-box-sm .choice-emoji svg {
+  width: 16px;
+  height: 16px;
 }
 
 .choice-box-sm .choice-label {
@@ -892,9 +902,18 @@ legend {
 .method-bar-label {
   width: 68px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.78rem;
   color: var(--text-secondary);
   white-space: nowrap;
+}
+
+.method-bar-label svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .method-bar-track {

@@ -7,6 +7,15 @@ import { optimizeStopOrder } from "../routeOptimize";
 import { buildGoogleMapsRouteUrl } from "../googleMapsRoute";
 import { getCurrentLocation } from "../currentLocation";
 import { saveRoute, loadSavedRoute, type SavedRoute } from "../savedRoute";
+import {
+  ClipboardIcon,
+  MapPinIcon,
+  CalendarIcon,
+  AlertTriangleIcon,
+  CheckCircleIcon,
+  SaveIcon,
+  FolderIcon,
+} from "../components/icons";
 
 interface Stop {
   id: number;
@@ -238,10 +247,10 @@ export default function RoutePlanPage() {
         </label>
         <div className="jobs-toolbar" style={{ flexDirection: "row" }}>
           <button type="button" className="btn btn-sm" onClick={handlePasteFromClipboard}>
-            📋 Paste from clipboard
+            <ClipboardIcon size={16} /> Paste from clipboard
           </button>
           <button type="submit" className="btn btn-primary btn-sm" disabled={!pastedText.trim()}>
-            ➕ Add stop
+            + Add stop
           </button>
         </div>
       </form>
@@ -258,8 +267,16 @@ export default function RoutePlanPage() {
                   Remove
                 </button>
               </div>
-              <span className="empty-hint">{stop.address || "⚠️ No address found in the ticket"}</span>
-              <span className="empty-hint">📅 {timeLabel(stop)}</span>
+              <span className="empty-hint">
+                {stop.address || (
+                  <>
+                    <AlertTriangleIcon size={13} /> No address found in the ticket
+                  </>
+                )}
+              </span>
+              <span className="empty-hint">
+                <CalendarIcon size={13} /> {timeLabel(stop)}
+              </span>
               {stop.address && (
                 <a
                   href={buildGoogleMapsRouteUrl([stop.address])}
@@ -267,7 +284,7 @@ export default function RoutePlanPage() {
                   rel="noreferrer"
                   className="btn btn-sm"
                 >
-                  📍 Navigate to just this stop
+                  <MapPinIcon size={16} /> Navigate to just this stop
                 </a>
               )}
             </div>
@@ -281,9 +298,13 @@ export default function RoutePlanPage() {
         disabled={stops.length < 1 || buildState === "geocoding"}
         onClick={handleCalculateRoute}
       >
-        {buildState === "geocoding"
-          ? "Sorting by time..."
-          : `🧭 Calculate route (${stops.length} stop${stops.length === 1 ? "" : "s"})`}
+        {buildState === "geocoding" ? (
+          "Sorting by time..."
+        ) : (
+          <>
+            <MapPinIcon size={18} /> Calculate route ({stops.length} stop{stops.length === 1 ? "" : "s"})
+          </>
+        )}
       </button>
 
       {noteMessage && <p className="empty-hint">{noteMessage}</p>}
@@ -291,7 +312,9 @@ export default function RoutePlanPage() {
       {noAddressStops.length > 0 && (
         <div className="card">
           <div className="card-header">
-            <h3>⚠️ No address found</h3>
+            <h3 style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <AlertTriangleIcon size={16} /> No address found
+            </h3>
           </div>
           <p className="card-caption">These were left out of the route entirely — nothing to navigate to.</p>
           <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
@@ -375,9 +398,12 @@ export default function RoutePlanPage() {
                   </button>
                   <div className="empty-hint">{stop.address}</div>
                   {notFound && (
-                    <p className="overdue-callout">
-                      ⚠️ Couldn't be found on the free map tool — order isn't guaranteed for this stop, but the
-                      "Navigate" link below still sends Google Maps the address directly.
+                    <p className="overdue-callout" style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                      <AlertTriangleIcon size={15} />
+                      <span>
+                        Couldn't be found on the free map tool — order isn't guaranteed for this stop, but the
+                        "Navigate" link below still sends Google Maps the address directly.
+                      </span>
                     </p>
                   )}
                   {expanded && (
@@ -401,7 +427,7 @@ export default function RoutePlanPage() {
                     rel="noreferrer"
                     className="btn btn-sm"
                   >
-                    📍 Navigate to just this stop
+                    <MapPinIcon size={16} /> Navigate to just this stop
                   </a>
                   <div style={{ height: 6 }} />
                 </li>
@@ -409,10 +435,18 @@ export default function RoutePlanPage() {
             })}
           </ol>
           <a href={mapsUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-block">
-            📍 Open full route in Google Maps
+            <MapPinIcon size={16} /> Open full route in Google Maps
           </a>
           <button type="button" className="btn btn-block" onClick={handleSaveRoute}>
-            {justSaved ? "✅ Saved!" : "💾 Save this route"}
+            {justSaved ? (
+              <>
+                <CheckCircleIcon size={16} /> Saved!
+              </>
+            ) : (
+              <>
+                <SaveIcon size={16} /> Save this route
+              </>
+            )}
           </button>
         </div>
       )}
@@ -423,7 +457,13 @@ export default function RoutePlanPage() {
         disabled={!savedRoute}
         onClick={() => setShowSavedRoute((prev) => !prev)}
       >
-        {showSavedRoute ? "Hide saved route" : "🗂️ Show saved route"}
+        {showSavedRoute ? (
+          "Hide saved route"
+        ) : (
+          <>
+            <FolderIcon size={16} /> Show saved route
+          </>
+        )}
       </button>
 
       {showSavedRoute && savedRoute && (
@@ -472,7 +512,7 @@ export default function RoutePlanPage() {
                     rel="noreferrer"
                     className="btn btn-sm"
                   >
-                    📍 Navigate to just this stop
+                    <MapPinIcon size={16} /> Navigate to just this stop
                   </a>
                   <div style={{ height: 6 }} />
                 </li>
@@ -480,7 +520,7 @@ export default function RoutePlanPage() {
             })}
           </ol>
           <a href={savedRoute.mapsUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-block">
-            📍 Open saved route in Google Maps
+            <MapPinIcon size={16} /> Open saved route in Google Maps
           </a>
         </div>
       )}
