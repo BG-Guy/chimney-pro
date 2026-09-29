@@ -13,7 +13,7 @@ import {
 import { addDays, computeDateRanges, fmtISO } from "../dateUtils";
 import MonthWeekPicker from "../components/MonthWeekPicker";
 import { DEPOSIT_METHOD_ICON, type GasLog, type Job } from "../types";
-import { DownloadIcon } from "../components/icons";
+import { DownloadIcon, CircleDotIcon } from "../components/icons";
 import { formatCompactMoney, formatMoney } from "../format";
 
 function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -202,7 +202,7 @@ function PaidMethods({ counts }: { counts: Insights["paidMethodCounts"] }) {
         {entries
           .sort((a, b) => b[1] - a[1])
           .map(([method, count]) => {
-            const MethodIcon = DEPOSIT_METHOD_ICON[method as keyof typeof DEPOSIT_METHOD_ICON];
+            const MethodIcon = DEPOSIT_METHOD_ICON[method as keyof typeof DEPOSIT_METHOD_ICON] ?? CircleDotIcon;
             return (
               <div className="method-bar-row" key={method}>
                 <span className="method-bar-label">

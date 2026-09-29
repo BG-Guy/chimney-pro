@@ -37,6 +37,7 @@ import {
   AlertTriangleIcon,
   CheckCircleIcon,
   DownloadIcon,
+  CircleDotIcon,
 } from "../components/icons";
 
 function isoToDate(iso: string): Date {
@@ -329,7 +330,7 @@ export default function JobListPage() {
           {visibleJobs.map((job) => {
             const overdue = isOverdue(job);
             const outcome = job.leadOutcome;
-            const OutcomeIcon = LEAD_OUTCOME_ICON[outcome];
+            const OutcomeIcon = LEAD_OUTCOME_ICON[outcome] ?? CircleDotIcon;
             const ticketNumber = extractTicketNumber(job.rawTicketText);
             const customerName = extractCustomerName(job.rawTicketText);
             return (
@@ -388,7 +389,8 @@ export default function JobListPage() {
                       {job.payments
                         .filter((p) => p.amount && p.method)
                         .map((p, i) => {
-                          const MethodIcon = DEPOSIT_METHOD_ICON[p.method as Exclude<typeof p.method, "">];
+                          const MethodIcon =
+                            DEPOSIT_METHOD_ICON[p.method as Exclude<typeof p.method, "">] ?? CircleDotIcon;
                           return <MethodIcon key={i} size={13} />;
                         })}
                     </dd>
