@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import { extractCustomerName } from "../customerName";
 import { extractAddress } from "../address";
 import { extractScheduledTime, parseScheduledStartMinutes } from "../scheduledTime";
+import { extractTicketNumber } from "../ticketNumber";
 import { geocodeAll, type LatLng } from "../geocode";
 import { optimizeStopOrder } from "../routeOptimize";
 import { buildGoogleMapsRouteUrl } from "../googleMapsRoute";
 import { getCurrentLocation } from "../currentLocation";
 import { saveRoute, loadSavedRoute, type SavedRoute } from "../savedRoute";
+import { loadReviewTemplate } from "../reviewTemplate";
 import {
   ClipboardIcon,
   MapPinIcon,
@@ -50,6 +52,24 @@ export default function RoutePlanPage() {
   const [showSavedRoute, setShowSavedRoute] = useState(false);
   const [savedExpandedStopId, setSavedExpandedStopId] = useState<number | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+
+  const [copiedTicketId, setCopiedTicketId] = useState<number | null>(null);
+  const [copiedNumberId, setCopiedNumberId] = useState<number | null>(null);
+  const [savedCopiedTicketId, setSavedCopiedTicketId] = useState<number | null>(null);
+  const [savedCopiedNumberId, setSavedCopiedNumberId] = useState<number | null>(null);
+  const [copiedReviewTemplate, setCopiedReviewTemplate] = useState(false);
+
+  async function copyText(text: string, id: number, setCopiedId: (v: number | null) => void) {
+    await navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  }
+
+  async function handleCopyReviewTemplate() {
+    await navigator.clipboard.writeText(loadReviewTemplate());
+    setCopiedReviewTemplate(true);
+    setTimeout(() => setCopiedReviewTemplate(false), 1500);
+  }
 
   function resetRoute() {
     setNoteMessage(null);
@@ -277,16 +297,34 @@ export default function RoutePlanPage() {
               <span className="empty-hint">
                 <CalendarIcon size={13} /> {timeLabel(stop)}
               </span>
-              {stop.address && (
-                <a
-                  href={buildGoogleMapsRouteUrl([stop.address])}
-                  target="_blank"
-                  rel="noreferrer"
+              <div className="jobs-toolbar" style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                {stop.address && (
+                  <a
+                    href={buildGoogleMapsRouteUrl([stop.address])}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-sm"
+                  >
+                    <MapPinIcon size={16} /> Navigate to just this stop
+                  </a>
+                )}
+                <button
+                  type="button"
                   className="btn btn-sm"
+                  onClick={() => copyText(stop.rawText, stop.id, setCopiedTicketId)}
                 >
-                  <MapPinIcon size={16} /> Navigate to just this stop
-                </a>
-              )}
+                  <ClipboardIcon size={16} /> {copiedTicketId === stop.id ? "Copied!" : "Copy ticket"}
+                </button>
+                {extractTicketNumber(stop.rawText) && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => copyText(extractTicketNumber(stop.rawText)!, stop.id, setCopiedNumberId)}
+                  >
+                    {copiedNumberId === stop.id ? "Copied!" : `Copy #${extractTicketNumber(stop.rawText)}`}
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -421,14 +459,32 @@ export default function RoutePlanPage() {
                       {stop.rawText || "No ticket text saved for this stop."}
                     </p>
                   )}
-                  <a
-                    href={buildGoogleMapsRouteUrl([pointById[stop.id] ?? stop.address])}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-sm"
-                  >
-                    <MapPinIcon size={16} /> Navigate to just this stop
-                  </a>
+                  <div className="jobs-toolbar" style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                    <a
+                      href={buildGoogleMapsRouteUrl([pointById[stop.id] ?? stop.address])}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-sm"
+                    >
+                      <MapPinIcon size={16} /> Navigate to just this stop
+                    </a>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => copyText(stop.rawText, stop.id, setCopiedTicketId)}
+                    >
+                      <ClipboardIcon size={16} /> {copiedTicketId === stop.id ? "Copied!" : "Copy ticket"}
+                    </button>
+                    {extractTicketNumber(stop.rawText) && (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => copyText(extractTicketNumber(stop.rawText)!, stop.id, setCopiedNumberId)}
+                      >
+                        {copiedNumberId === stop.id ? "Copied!" : `Copy #${extractTicketNumber(stop.rawText)}`}
+                      </button>
+                    )}
+                  </div>
                   <div style={{ height: 6 }} />
                 </li>
               );
@@ -451,20 +507,26 @@ export default function RoutePlanPage() {
         </div>
       )}
 
-      <button
-        type="button"
-        className="btn btn-block"
-        disabled={!savedRoute}
-        onClick={() => setShowSavedRoute((prev) => !prev)}
-      >
-        {showSavedRoute ? (
-          "Hide saved route"
-        ) : (
-          <>
-            <FolderIcon size={16} /> Show saved route
-          </>
-        )}
-      </button>
+      <div className="jobs-toolbar" style={{ flexDirection: "row" }}>
+        <button
+          type="button"
+          className="btn"
+          style={{ flex: 1 }}
+          disabled={!savedRoute}
+          onClick={() => setShowSavedRoute((prev) => !prev)}
+        >
+          {showSavedRoute ? (
+            "Hide saved route"
+          ) : (
+            <>
+              <FolderIcon size={16} /> Show saved route
+            </>
+          )}
+        </button>
+        <button type="button" className="btn" style={{ flex: 1 }} onClick={handleCopyReviewTemplate}>
+          <ClipboardIcon size={16} /> {copiedReviewTemplate ? "Copied!" : "Copy review template"}
+        </button>
+      </div>
 
       {showSavedRoute && savedRoute && (
         <div className="card">
@@ -506,14 +568,32 @@ export default function RoutePlanPage() {
                       {stop.rawText || "No ticket text saved for this stop."}
                     </p>
                   )}
-                  <a
-                    href={buildGoogleMapsRouteUrl([stop.address])}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-sm"
-                  >
-                    <MapPinIcon size={16} /> Navigate to just this stop
-                  </a>
+                  <div className="jobs-toolbar" style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                    <a
+                      href={buildGoogleMapsRouteUrl([stop.address])}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-sm"
+                    >
+                      <MapPinIcon size={16} /> Navigate to just this stop
+                    </a>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => copyText(stop.rawText, stop.id, setSavedCopiedTicketId)}
+                    >
+                      <ClipboardIcon size={16} /> {savedCopiedTicketId === stop.id ? "Copied!" : "Copy ticket"}
+                    </button>
+                    {extractTicketNumber(stop.rawText) && (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => copyText(extractTicketNumber(stop.rawText)!, stop.id, setSavedCopiedNumberId)}
+                      >
+                        {savedCopiedNumberId === stop.id ? "Copied!" : `Copy #${extractTicketNumber(stop.rawText)}`}
+                      </button>
+                    )}
+                  </div>
                   <div style={{ height: 6 }} />
                 </li>
               );

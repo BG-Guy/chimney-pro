@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { TAG_COLORS, type Tag, type TagColor } from "../types";
 import { DownloadIcon, UploadIcon } from "../components/icons";
+import { loadReviewTemplate, saveReviewTemplate } from "../reviewTemplate";
 
 export default function SettingsPage() {
   const [tags, setTags] = useState<Tag[]>([]);
@@ -11,6 +12,14 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [reviewTemplate, setReviewTemplate] = useState(() => loadReviewTemplate());
+  const [templateSaved, setTemplateSaved] = useState(false);
+
+  function handleSaveTemplate() {
+    saveReviewTemplate(reviewTemplate);
+    setTemplateSaved(true);
+    setTimeout(() => setTemplateSaved(false), 1500);
+  }
 
   useEffect(() => {
     api
@@ -103,6 +112,26 @@ export default function SettingsPage() {
           style={{ display: "none" }}
           onChange={handleImportFile}
         />
+      </section>
+
+      <section className="card">
+        <div className="card-header">
+          <h3>Review template</h3>
+        </div>
+        <p className="card-caption">Copied from the Route tab after a job — edit it to whatever you want to send.</p>
+        <div className="job-form">
+          <label>
+            Message
+            <textarea
+              rows={4}
+              value={reviewTemplate}
+              onChange={(e) => setReviewTemplate(e.target.value)}
+            />
+          </label>
+          <button type="button" className="btn btn-primary" onClick={handleSaveTemplate}>
+            {templateSaved ? "Saved!" : "Save template"}
+          </button>
+        </div>
       </section>
 
       <section className="card">
