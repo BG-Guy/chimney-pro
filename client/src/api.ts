@@ -11,6 +11,7 @@ import {
 } from "./types";
 import { todayISO } from "./dateUtils";
 import { clearSavedRoute, loadSavedRoute, saveRoute } from "./savedRoute";
+import { loadReviewTemplate, saveReviewTemplate } from "./reviewTemplate";
 
 const JOBS_KEY = "chimneypro:jobs";
 const JOBS_SEQ_KEY = "chimneypro:jobs:seq";
@@ -246,6 +247,7 @@ export const api = {
         tags: read<Tag[]>(TAGS_KEY, []),
         tagsSeq: read<number>(TAGS_SEQ_KEY, 0),
         savedRoute: loadSavedRoute(),
+        reviewTemplate: loadReviewTemplate(),
       },
       null,
       2
@@ -269,5 +271,6 @@ export const api = {
       if (data.savedRoute) saveRoute(data.savedRoute);
       else clearSavedRoute();
     }
+    if (typeof data.reviewTemplate === "string") saveReviewTemplate(data.reviewTemplate);
   },
 };

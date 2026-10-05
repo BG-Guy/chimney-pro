@@ -36,6 +36,7 @@ import {
   WalletIcon,
   WrenchIcon,
   UserIcon,
+  ListIcon,
   AlertTriangleIcon,
   CheckCircleIcon,
   DownloadIcon,
@@ -65,6 +66,14 @@ const SORT_OPTIONS: Choice<SortMode>[] = [
   { value: "oldest", label: "Oldest", icon: HistoryIcon },
   { value: "scheduled", label: "Scheduled", icon: CalendarIcon },
   { value: "total", label: "Total", icon: DollarSignIcon },
+];
+
+type CrewFilter = "all" | "tech" | "repair";
+
+const CREW_FILTER_OPTIONS: Choice<CrewFilter>[] = [
+  { value: "all", label: "Everyone", icon: ListIcon },
+  { value: "tech", label: "Tech", icon: UserIcon },
+  { value: "repair", label: "Repair team", icon: WrenchIcon },
 ];
 
 const STATUS_FILTER_OPTIONS: Choice<JobStatus | "all">[] = [
@@ -119,6 +128,7 @@ export default function JobListPage() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all");
+  const [crewFilter, setCrewFilter] = useState<CrewFilter>("all");
   const [tagFilter, setTagFilter] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [paycheckFilterOn, setPaycheckFilterOn] = useState(false);
@@ -158,6 +168,8 @@ export default function JobListPage() {
     const q = searchQuery.trim().toLowerCase();
     const filtered = jobs.filter((job) => {
       if (statusFilter !== "all" && job.status !== statusFilter) return false;
+      if (crewFilter === "tech" && job.needsRepairTeam) return false;
+      if (crewFilter === "repair" && !job.needsRepairTeam) return false;
       if (tagFilter.length > 0 && !job.tagIds.some((id) => tagFilter.includes(id))) return false;
       if (q) {
         const customerName = (extractCustomerName(job.rawTicketText) ?? "").toLowerCase();
@@ -179,6 +191,7 @@ export default function JobListPage() {
     jobs,
     sortMode,
     statusFilter,
+    crewFilter,
     tagFilter,
     searchQuery,
     paycheckFilterOn,
@@ -266,6 +279,7 @@ export default function JobListPage() {
       <div className="jobs-toolbar">
         <ChoiceBoxes options={SORT_OPTIONS} value={sortMode} onChange={setSortMode} />
         <ChoiceBoxes options={STATUS_FILTER_OPTIONS} value={statusFilter} onChange={setStatusFilter} />
+        <ChoiceBoxes options={CREW_FILTER_OPTIONS} value={crewFilter} onChange={setCrewFilter} />
       </div>
 
       {tags.length > 0 && (
