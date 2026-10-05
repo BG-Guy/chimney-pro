@@ -91,6 +91,7 @@ function readJobs(): Job[] {
     const withMigratedFields: Job = {
       ...job,
       tagIds: job.tagIds ?? [],
+      scheduledTimeRange: job.scheduledTimeRange ?? "",
       loggedDate: job.loggedDate ?? job.createdAt?.slice(0, 10) ?? todayISO(),
       items: (job.items ?? []).map((item: any) => ({ ...item, quantity: item.quantity ?? 1 })),
       payments,

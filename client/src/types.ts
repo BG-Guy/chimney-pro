@@ -40,6 +40,7 @@ export interface Job {
   items: JobItem[];
   partsCost: number;
   scheduledDate: string | null;
+  scheduledTimeRange: string;
   needsRepairTeam: boolean;
   payments: Payment[];
   status: JobStatus;
@@ -84,6 +85,7 @@ export function emptyJob(): Job {
     items: [{ description: "", cost: 0, quantity: 1 }],
     partsCost: 0,
     scheduledDate: null,
+    scheduledTimeRange: "",
     needsRepairTeam: false,
     payments: [],
     status: "awaiting",

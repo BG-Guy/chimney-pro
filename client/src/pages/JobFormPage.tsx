@@ -23,6 +23,8 @@ import { todayISO } from "../dateUtils";
 import { formatMoney } from "../format";
 import { ClipboardIcon, WrenchIcon, WalletIcon, CheckCircleIcon, ClockIcon } from "../components/icons";
 
+const HOUR_RANGE_PRESETS = ["8-11", "9-12", "10-1", "11-2", "12-3", "1-4", "2-5"];
+
 const PAID_METHOD_OPTIONS: Choice<DepositMethod>[] = DEPOSIT_METHODS.map((m) => ({
   value: m,
   label: m,
@@ -313,6 +315,29 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         Date job will be done
         <DateButton value={job.scheduledDate} onChange={(v) => updateField("scheduledDate", v)} />
       </label>
+
+      <label>
+        Hour range
+        <input
+          type="text"
+          className="input-sm"
+          placeholder="e.g. 9-12"
+          value={job.scheduledTimeRange}
+          onChange={(e) => updateField("scheduledTimeRange", e.target.value)}
+        />
+      </label>
+      <div className="chip-scroll-row">
+        {HOUR_RANGE_PRESETS.map((range) => (
+          <button
+            key={range}
+            type="button"
+            className={`chip-pill${job.scheduledTimeRange === range ? " selected" : ""}`}
+            onClick={() => updateField("scheduledTimeRange", job.scheduledTimeRange === range ? "" : range)}
+          >
+            {range}
+          </button>
+        ))}
+      </div>
 
       <label>
         Repair team

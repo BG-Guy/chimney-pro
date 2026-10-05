@@ -20,6 +20,7 @@ import { extractTicketNumber } from "../ticketNumber";
 import { extractCustomerName } from "../customerName";
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import MonthWeekPicker from "../components/MonthWeekPicker";
+import JobsCalendarSheet from "../components/JobsCalendarSheet";
 import DateButton from "../components/DateButton";
 import { currentMonthOption, monthRangeISO, recentMonths, type MonthOption } from "../dateBuckets";
 import { addDays, fmtISO, inRange, startOfWeek } from "../dateUtils";
@@ -112,7 +113,9 @@ export default function JobListPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [copiedOriginalId, setCopiedOriginalId] = useState<number | null>(null);
   const [copiedNumberId, setCopiedNumberId] = useState<number | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all");
   const [tagFilter, setTagFilter] = useState<number[]>([]);
@@ -201,6 +204,12 @@ export default function JobListPage() {
     setTimeout(() => setCopiedId(null), 1500);
   }
 
+  async function handleCopyOriginal(job: Job) {
+    await navigator.clipboard.writeText(job.rawTicketText);
+    setCopiedOriginalId(job.id!);
+    setTimeout(() => setCopiedOriginalId(null), 1500);
+  }
+
   async function handleCopyNumber(job: Job, ticketNumber: string) {
     await navigator.clipboard.writeText(ticketNumber);
     setCopiedNumberId(job.id!);
@@ -228,13 +237,21 @@ export default function JobListPage() {
 
   return (
     <div className="job-list">
-      <input
-        type="search"
-        className="job-search-input"
-        placeholder="Search by customer or job #"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-      />
+      {calendarOpen && <JobsCalendarSheet jobs={jobs} onClose={() => setCalendarOpen(false)} />}
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          type="search"
+          className="job-search-input"
+          style={{ flex: 1, minWidth: 0 }}
+          placeholder="Search by customer or job #"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <button type="button" className="btn" onClick={() => setCalendarOpen(true)}>
+          <CalendarDaysIcon size={18} /> Calendar
+        </button>
+      </div>
 
       <div className="jobs-toolbar">
         <ChoiceBoxes options={SORT_OPTIONS} value={sortMode} onChange={setSortMode} />
@@ -380,7 +397,13 @@ export default function JobListPage() {
                 <dl className="job-card-details">
                   <div>
                     <dt>{job.status === "done" ? "Completed" : "Scheduled"}</dt>
-                    <dd>{job.status === "done" ? job.completedDate || "—" : job.scheduledDate || "TBD"}</dd>
+                    <dd>
+                      {job.status === "done"
+                        ? job.completedDate || "—"
+                        : job.scheduledDate
+                          ? `${job.scheduledDate}${job.scheduledTimeRange ? ` · ${job.scheduledTimeRange}` : ""}`
+                          : "TBD"}
+                    </dd>
                   </div>
                   <div>
                     <dt>Paid</dt>
@@ -427,7 +450,10 @@ export default function JobListPage() {
                     Edit
                   </Link>
                   <button className="btn" onClick={() => handleCopy(job)}>
-                    {copiedId === job.id ? "Copied!" : "Copy"}
+                    {copiedId === job.id ? "Copied!" : "Copy ticket"}
+                  </button>
+                  <button className="btn" onClick={() => handleCopyOriginal(job)}>
+                    {copiedOriginalId === job.id ? "Copied!" : "Copy original"}
                   </button>
                   <button className="btn btn-danger" onClick={() => handleDelete(job)}>
                     Delete

@@ -1,37 +1,48 @@
-import type { Job } from "./types";
+import { balanceRemaining, jobTotal, type Job } from "./types";
 import { formatMoney as money } from "./format";
 
-// "2026-03-09" -> "3/09", matching how a tech would jot the date down by hand.
-function shortDate(iso: string): string {
-  const [, m, d] = iso.split("-");
-  return `${Number(m)}/${d}`;
+function ordinal(n: number): string {
+  const suffixes = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]}`;
+}
+
+// "2026-10-09" -> "Friday October 9th", the way the tech would write it to the office.
+function longDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+  const month = date.toLocaleDateString("en-US", { month: "long" });
+  return `${weekday} ${month} ${ordinal(d)}`;
 }
 
 export function formatTicketText(job: Job): string {
   const lines: string[] = [];
 
   if (job.rawTicketText.trim()) {
-    lines.push(job.rawTicketText.trim());
+    lines.push(job.rawTicketText.trim(), "");
   }
 
-  for (const item of job.items) {
-    if (!item.description.trim() && !item.cost) continue;
-    const qty = item.quantity || 1;
-    lines.push(qty > 1 ? `${item.description} ${qty}x` : item.description);
-  }
+  lines.push(`Total ${money(jobTotal(job))}`);
 
-  job.payments
-    .filter((p) => p.amount > 0)
-    .forEach((p, i) => {
-      lines.push(`payment ${i + 1}: ${money(p.amount)}${p.method ? ` by ${p.method.toLowerCase()}` : ""}`);
-    });
+  for (const p of job.payments) {
+    if (!(p.amount > 0)) continue;
+    lines.push(p.method ? `${money(p.amount)} ${p.method.toLowerCase()}` : money(p.amount));
+  }
 
   if (job.status === "done") {
-    lines.push("job is done");
-  } else if (job.scheduledDate) {
-    lines.push(`will do the job on ${shortDate(job.scheduledDate)}`);
+    lines.push("Job is done, paid in full");
+    return lines.join("\n");
+  }
+
+  lines.push(`Balance ${money(balanceRemaining(job))}`);
+
+  const who = job.needsRepairTeam ? "Repair team" : "Tech";
+  if (job.scheduledDate) {
+    const time = job.scheduledTimeRange.trim();
+    lines.push(`${who} will do the job on ${longDate(job.scheduledDate)}${time ? ` ${time}` : ""}`);
   } else {
-    lines.push("awaiting — no date scheduled yet");
+    lines.push(`${who} will do the job — no date scheduled yet`);
   }
 
   return lines.join("\n");
