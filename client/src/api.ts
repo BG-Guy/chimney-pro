@@ -10,6 +10,7 @@ import {
   type Tag,
 } from "./types";
 import { todayISO } from "./dateUtils";
+import { clearSavedRoute, loadSavedRoute, saveRoute } from "./savedRoute";
 
 const JOBS_KEY = "chimneypro:jobs";
 const JOBS_SEQ_KEY = "chimneypro:jobs:seq";
@@ -244,6 +245,7 @@ export const api = {
         gasSeq: read<number>(GAS_SEQ_KEY, 0),
         tags: read<Tag[]>(TAGS_KEY, []),
         tagsSeq: read<number>(TAGS_SEQ_KEY, 0),
+        savedRoute: loadSavedRoute(),
       },
       null,
       2
@@ -261,5 +263,11 @@ export const api = {
     write(GAS_SEQ_KEY, data.gasSeq ?? 0);
     write(TAGS_KEY, data.tags ?? []);
     write(TAGS_SEQ_KEY, data.tagsSeq ?? 0);
+    // Backups made before the saved route was included don't have the field at all —
+    // leave whatever route is on this device alone rather than wiping it.
+    if ("savedRoute" in data) {
+      if (data.savedRoute) saveRoute(data.savedRoute);
+      else clearSavedRoute();
+    }
   },
 };

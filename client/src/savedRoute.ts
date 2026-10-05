@@ -20,6 +20,10 @@ export function saveRoute(route: SavedRoute): void {
   localStorage.setItem(KEY, JSON.stringify(route));
 }
 
+export function clearSavedRoute(): void {
+  localStorage.removeItem(KEY);
+}
+
 export function loadSavedRoute(): SavedRoute | null {
   const raw = localStorage.getItem(KEY);
   if (!raw) return null;

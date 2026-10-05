@@ -1,4 +1,21 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { extractCustomerName } from "../customerName";
 import { extractAddress } from "../address";
 import { extractScheduledTime, parseScheduledStartMinutes } from "../scheduledTime";
@@ -17,7 +34,36 @@ import {
   CheckCircleIcon,
   SaveIcon,
   FolderIcon,
+  GripIcon,
 } from "../components/icons";
+
+// One draggable row in the route. Only the grip handle starts a drag, so the row's own
+// buttons stay tappable and the page still scrolls normally when swiping over the content.
+function SortableRow({ id, children }: { id: number; children: (handle: ReactNode) => ReactNode }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  const style = {
+    transform: CSS.Translate.toString(transform ? { ...transform, x: 0 } : null),
+    transition,
+  };
+  const handle = (
+    <button
+      type="button"
+      ref={setActivatorNodeRef}
+      className="drag-handle"
+      aria-label="Drag to reorder"
+      {...attributes}
+      {...listeners}
+    >
+      <GripIcon size={18} />
+    </button>
+  );
+  return (
+    <div ref={setNodeRef} style={style} className={`route-stop${isDragging ? " dragging" : ""}`}>
+      {children(handle)}
+    </div>
+  );
+}
 
 interface Stop {
   id: number;
@@ -59,6 +105,15 @@ export default function RoutePlanPage() {
   const [savedCopiedNumberId, setSavedCopiedNumberId] = useState<number | null>(null);
   const [copiedReviewTemplate, setCopiedReviewTemplate] = useState(false);
 
+  // Stop ids in the order the user dragged them into — null means "use the app's
+  // suggested order". Cleared whenever the route is rebuilt.
+  const [manualOrder, setManualOrder] = useState<number[] | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
   async function copyText(text: string, id: number, setCopiedId: (v: number | null) => void) {
     await navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -79,6 +134,7 @@ export default function RoutePlanPage() {
     setPlacement({});
     setPointById({});
     setNotFoundStopIds([]);
+    setManualOrder(null);
   }
 
   async function handlePasteFromClipboard() {
@@ -200,10 +256,10 @@ export default function RoutePlanPage() {
   // Only one route is ever saved — saving again just overwrites it, which is exactly what
   // "start a new route and save it" is supposed to do.
   function handleSaveRoute() {
-    if (!finalOrder || !mapsUrl) return;
+    if (!routeStops || !mapsUrl) return;
     const route: SavedRoute = {
       savedAt: new Date().toISOString(),
-      stops: finalOrder.map((s) => ({
+      stops: routeStops.map((s) => ({
         id: s.id,
         name: s.name,
         address: s.address,
@@ -234,12 +290,31 @@ export default function RoutePlanPage() {
     return result;
   }, [timedOrder, unscheduledStops, placement]);
 
+  // A stop that joins the route after a manual drag (e.g. an unscheduled one just placed)
+  // goes in at its suggested position rather than resetting the user's ordering.
+  const routeStops = useMemo(() => {
+    if (!finalOrder) return null;
+    if (!manualOrder) return finalOrder;
+    const byId = new Map(finalOrder.map((s) => [s.id, s]));
+    const result = manualOrder.map((id) => byId.get(id)).filter((s): s is Stop => s !== undefined);
+    finalOrder.forEach((s, i) => {
+      if (!manualOrder.includes(s.id)) result.splice(Math.min(i, result.length), 0, s);
+    });
+    return result;
+  }, [finalOrder, manualOrder]);
+
   const unplacedCount = unscheduledStops.filter((s) => placement[s.id] === undefined).length;
 
   const mapsUrl = useMemo(() => {
-    if (!finalOrder || finalOrder.length === 0) return null;
-    return buildGoogleMapsRouteUrl(finalOrder.map((s) => pointById[s.id] ?? s.address));
-  }, [finalOrder, pointById]);
+    if (!routeStops || routeStops.length === 0) return null;
+    return buildGoogleMapsRouteUrl(routeStops.map((s) => pointById[s.id] ?? s.address));
+  }, [routeStops, pointById]);
+
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!routeStops || !over || active.id === over.id) return;
+    const ids = routeStops.map((s) => s.id);
+    setManualOrder(arrayMove(ids, ids.indexOf(Number(active.id)), ids.indexOf(Number(over.id))));
+  }
 
   function timeLabel(stop: Stop): string {
     return stop.time || "No time found";
@@ -403,19 +478,36 @@ export default function RoutePlanPage() {
         </div>
       )}
 
-      {finalOrder && finalOrder.length > 0 && mapsUrl && (
+      {routeStops && routeStops.length > 0 && mapsUrl && (
         <div className="card">
           <div className="card-header">
             <h3>Route order</h3>
-            <span className="card-caption">Sorted by scheduled time, starts from your location</span>
+            <span className="card-caption">
+              {manualOrder ? "Your custom order" : "Sorted by scheduled time, starts from your location"}
+            </span>
           </div>
-          <ol style={{ margin: 0, paddingLeft: "1.2rem", display: "flex", flexDirection: "column", gap: 8 }}>
-            {finalOrder.map((stop, i) => {
+          <div className="route-reorder-hint">
+            <GripIcon size={14} />
+            <span>Drag a stop by its handle to change the order.</span>
+            {manualOrder && (
+              <button type="button" className="btn btn-sm" onClick={() => setManualOrder(null)}>
+                Reset order
+              </button>
+            )}
+          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={routeStops.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+          <div className="route-stops">
+            {routeStops.map((stop, i) => {
               const isUnscheduled = unscheduledStops.some((u) => u.id === stop.id);
               const notFound = notFoundStopIds.includes(stop.id);
               const expanded = expandedStopId === stop.id;
               return (
-                <li key={stop.id}>
+                <SortableRow key={stop.id} id={stop.id}>
+                  {(handle) => (
+                <>
+                  {handle}
+                  <div className="route-stop-body">
                   <button
                     type="button"
                     onClick={() => setExpandedStopId(expanded ? null : stop.id)}
@@ -485,11 +577,15 @@ export default function RoutePlanPage() {
                       </button>
                     )}
                   </div>
-                  <div style={{ height: 6 }} />
-                </li>
+                  </div>
+                </>
+                  )}
+                </SortableRow>
               );
             })}
-          </ol>
+          </div>
+            </SortableContext>
+          </DndContext>
           <a href={mapsUrl} target="_blank" rel="noreferrer" className="btn btn-primary btn-block">
             <MapPinIcon size={16} /> Open full route in Google Maps
           </a>

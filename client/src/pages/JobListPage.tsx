@@ -35,6 +35,7 @@ import {
   ClipboardIcon,
   WalletIcon,
   WrenchIcon,
+  UserIcon,
   AlertTriangleIcon,
   CheckCircleIcon,
   DownloadIcon,
@@ -190,12 +191,21 @@ export default function JobListPage() {
     let done = 0;
     let waitingForPayment = 0;
     let awaits = 0;
+    let techProfitAwaiting = 0;
+    let techJobsAwaiting = 0;
+    let repairJobsAwaiting = 0;
     for (const job of visibleJobs) {
-      if (job.status === "done") done++;
-      else if (job.leadOutcome === "deposit") waitingForPayment++;
+      if (job.status === "done") {
+        done++;
+        continue;
+      }
+      if (job.leadOutcome === "deposit") waitingForPayment++;
       else awaits++;
+      techProfitAwaiting += techProfit(job);
+      if (job.needsRepairTeam) repairJobsAwaiting++;
+      else techJobsAwaiting++;
     }
-    return { done, waitingForPayment, awaits };
+    return { done, waitingForPayment, awaits, techProfitAwaiting, techJobsAwaiting, repairJobsAwaiting };
   }, [visibleJobs]);
 
   async function handleCopy(job: Job) {
@@ -332,6 +342,27 @@ export default function JobListPage() {
         )}
       </div>
 
+      <div className="awaiting-summary">
+        <div className="awaiting-summary-profit">
+          <span className="awaiting-summary-label">Tech profit awaiting</span>
+          <span className="awaiting-summary-value">{formatMoney(statusCounts.techProfitAwaiting)}</span>
+        </div>
+        <div className="awaiting-summary-split">
+          <div className="awaiting-summary-count">
+            <span className="awaiting-summary-label">
+              <span className="calendar-dot tech" /> Tech jobs awaiting
+            </span>
+            <span className="awaiting-summary-number">{statusCounts.techJobsAwaiting}</span>
+          </div>
+          <div className="awaiting-summary-count">
+            <span className="awaiting-summary-label">
+              <span className="calendar-dot repair" /> Repair team awaiting
+            </span>
+            <span className="awaiting-summary-number">{statusCounts.repairJobsAwaiting}</span>
+          </div>
+        </div>
+      </div>
+
       <div className="job-status-summary">
         <strong>{statusCounts.awaits} Jobs awaits</strong>
         <strong>{statusCounts.done} Jobs done</strong>
@@ -380,9 +411,13 @@ export default function JobListPage() {
                         <WalletIcon size={13} /> Got Deposit
                       </span>
                     )}
-                    {job.needsRepairTeam && (
+                    {job.needsRepairTeam ? (
                       <span className="repair-badge">
                         <WrenchIcon size={13} /> Repair Team
+                      </span>
+                    ) : (
+                      <span className="tech-badge">
+                        <UserIcon size={13} /> Tech
                       </span>
                     )}
                     {jobTotal(job) > 0 && balanceRemaining(job) <= 0 && (
