@@ -62,7 +62,7 @@ function PeriodComparisonCard({
         <span className="metric-row-current">{currentLabel}</span>
       </div>
       <div className="metric-rows">
-        <MetricRow label="Jobs" previous={String(previous.jobCount)} current={String(current.jobCount)} />
+        <MetricRow label="Jobs sold" previous={String(previous.jobCount)} current={String(current.jobCount)} />
         <MetricRow
           label="Revenue"
           previous={formatCompactMoney(previous.revenue)}
@@ -270,7 +270,7 @@ function QuickInsightsReport({ jobs, gasLogs }: { jobs: Job[]; gasLogs: GasLog[]
           <p className="card-caption">{report.dateRange}</p>
 
           <div className="stat-grid">
-            <StatTile label="Jobs" value={String(report.metrics.jobCount)} />
+            <StatTile label="Jobs sold" value={String(report.metrics.jobCount)} />
             <StatTile label="Revenue" value={formatCompactMoney(report.metrics.revenue)} />
             <StatTile label="Parts cost" value={formatCompactMoney(report.metrics.partsCost)} />
             <StatTile label="Tech profit" value={formatCompactMoney(report.metrics.techProfitRealized)} />
@@ -283,7 +283,7 @@ function QuickInsightsReport({ jobs, gasLogs }: { jobs: Job[]; gasLogs: GasLog[]
           </div>
 
           {report.jobs.length === 0 ? (
-            <p className="empty-hint">No jobs scheduled this week.</p>
+            <p className="empty-hint">No jobs sold this week.</p>
           ) : (
             <div className="week-report-jobs">
               {report.jobs.map((j) => (
@@ -428,7 +428,7 @@ export default function InsightsPage() {
         <>
           <div className="stat-grid">
             <StatTile label="Total jobs" value={String(insights.totalJobs)} />
-            <StatTile label="Closing rate" value={`${insights.closingRate.toFixed(0)}%`} sub="deposit taken" />
+            <StatTile label="Closing rate" value={`${insights.closingRate.toFixed(0)}%`} sub="jobs that got paid" />
             <StatTile label="Avg ticket" value={formatCompactMoney(insights.avgTicket)} />
             <StatTile label="Total revenue" value={formatCompactMoney(insights.totalRevenue)} />
           </div>

@@ -103,6 +103,16 @@ export function totalPaid(job: Job): number {
   return job.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 }
 
+// A job is sold the day the customer first pays (a deposit or the full amount), not the
+// day it was entered. Null while it's still just an estimate with no payment.
+export function soldDate(job: Job): string | null {
+  const dates = job.payments
+    .filter((p) => (Number(p.amount) || 0) > 0 && p.date)
+    .map((p) => p.date as string)
+    .sort();
+  return dates[0] ?? null;
+}
+
 // Credit card processing eats into each CC-paid payment, so those carry a 3% surcharge.
 export const CC_FEE_RATE = 0.03;
 

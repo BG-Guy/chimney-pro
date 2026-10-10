@@ -1,4 +1,13 @@
-import { balanceRemaining, jobTotal, techProfit, totalPaid, type GasLog, type Job, type JobStatus } from "./types";
+import {
+  balanceRemaining,
+  jobTotal,
+  soldDate,
+  techProfit,
+  totalPaid,
+  type GasLog,
+  type Job,
+  type JobStatus,
+} from "./types";
 import { addDays, fmtISO, inRange } from "./dateUtils";
 import { computePeriodMetrics, type PeriodMetrics } from "./insights";
 import { extractCustomerName } from "./customerName";
@@ -40,7 +49,7 @@ export function buildWeeklyReport(jobs: Job[], gasLogs: GasLog[], weekStart: Dat
   const weekEndISO = fmtISO(weekEnd);
 
   const weekJobs: WeeklyReportJob[] = jobs
-    .filter((j) => inRange(j.loggedDate, weekStartISO, weekEndISO))
+    .filter((j) => inRange(soldDate(j), weekStartISO, weekEndISO))
     .map((j) => ({
       id: j.id!,
       customerName: extractCustomerName(j.rawTicketText),
