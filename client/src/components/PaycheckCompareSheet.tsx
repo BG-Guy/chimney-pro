@@ -168,7 +168,8 @@ export default function PaycheckCompareSheet({
       {matching.length > 0 && (
         <div className="cmp-section">
           <button type="button" className="cmp-toggle" onClick={() => setShowMatching((v) => !v)}>
-            <CheckCircleIcon size={16} /> {matching.length} job{matching.length === 1 ? "" : "s"} match exactly
+            <CheckCircleIcon size={16} />{" "}
+            {matching.length === 1 ? "1 job matches exactly" : `${matching.length} jobs match exactly`}
             <span className="cmp-toggle-hint">{showMatching ? "Hide" : "Show"}</span>
           </button>
           {showMatching &&

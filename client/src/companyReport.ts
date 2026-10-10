@@ -131,24 +131,32 @@ export function parseCompanyReport(pages: TextItem[][]): CompanyReport {
   };
 }
 
+let pdfWorker: Worker | null = null;
+
 // pdf.js is big, so it's only loaded the moment a report is actually opened.
 export async function readCompanyReportPdf(file: File): Promise<CompanyReport> {
-  // The legacy build, not the default one: the default build calls brand-new JavaScript
-  // (Promise.try, Map.getOrInsertComputed, Math.sumPrecise) that iPhone Safari doesn't have
-  // yet, so it crashes there. The legacy build carries fallbacks for all of them.
+  // iPhone Safari needs two things pdf.js assumes: the legacy build (the default one calls
+  // brand-new JavaScript like Promise.try that Safari lacks), and streams that can be looped
+  // with `for await` — added by streamIterator here and inside our own worker.
+  await import("./streamIterator");
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const workerUrl = (await import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url")).default;
-  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  pdfWorker ??= new Worker(new URL("./pdfWorker.ts", import.meta.url), { type: "module" });
+  pdfjs.GlobalWorkerOptions.workerPort = pdfWorker;
 
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-  const pages: TextItem[][] = [];
-  for (let n = 1; n <= doc.numPages; n++) {
-    const content = await (await doc.getPage(n)).getTextContent();
-    pages.push(
-      content.items
-        .filter((i): i is typeof i & { str: string; transform: number[] } => "str" in i && i.str.trim() !== "")
-        .map((i) => ({ str: i.str, x: i.transform[4], y: i.transform[5] }))
-    );
+  const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  try {
+    const doc = await task.promise;
+    const pages: TextItem[][] = [];
+    for (let n = 1; n <= doc.numPages; n++) {
+      const content = await (await doc.getPage(n)).getTextContent();
+      pages.push(
+        content.items
+          .filter((i): i is typeof i & { str: string; transform: number[] } => "str" in i && i.str.trim() !== "")
+          .map((i) => ({ str: i.str, x: i.transform[4], y: i.transform[5] }))
+      );
+    }
+    return parseCompanyReport(pages);
+  } finally {
+    await task.destroy();
   }
-  return parseCompanyReport(pages);
 }

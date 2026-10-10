@@ -5,4 +5,6 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/chimney-pro/',
+  // The PDF worker (src/pdfWorker.ts) is an ES module — pdf.js's worker is one.
+  worker: { format: 'es' },
 })
