@@ -1292,20 +1292,36 @@ legend {
 
 /* Scheduled-jobs calendar (bottom sheet) */
 
-.sheet-backdrop {
+/* Bottom sheet: transitions (not one-shot animations) so it can slide back down on close,
+   and so a finger drag can take over the transform mid-flight. The curve is iOS's own. */
+.bs-root {
   position: absolute;
   inset: 0;
   z-index: 20;
-  display: flex;
-  align-items: flex-end;
-  background: rgba(0, 0, 0, 0.35);
-  animation: sheet-fade 200ms ease both;
 }
 
-.sheet {
-  width: 100%;
+.bs-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 360ms ease;
+  touch-action: none;
+}
+
+.bs-root.open .bs-backdrop {
+  opacity: 1;
+}
+
+.bs-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   max-height: 90%;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: var(--surface-1);
   border-radius: 20px 20px 0 0;
   padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
@@ -1313,7 +1329,13 @@ legend {
   flex-direction: column;
   gap: 12px;
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
-  animation: sheet-up 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform: translateY(100%);
+  transition: transform 360ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+
+.bs-root.open .bs-sheet {
+  transform: translateY(0);
 }
 
 .sheet-handle {
@@ -1485,15 +1507,6 @@ legend {
   gap: 6px;
 }
 
-@keyframes sheet-up {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
 @keyframes sheet-fade {
   from {
     opacity: 0;
@@ -1514,11 +1527,412 @@ legend {
   }
 }
 
+/* Insights date range */
+.range-button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.range-button > svg {
+  color: var(--series-1);
+  flex-shrink: 0;
+}
+
+.range-button-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.range-button-caption {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.range-button-change {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--series-1);
+}
+
+.range-grid-wrap {
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.range-grid {
+  column-gap: 0;
+  row-gap: 4px;
+}
+
+.range-day {
+  position: relative;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.range-day > span {
+  position: relative;
+  z-index: 1;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.range-day.today > span {
+  color: var(--series-1);
+  font-weight: 700;
+}
+
+.range-day.in-range {
+  background: var(--accent-bg);
+}
+
+.range-day.range-start::before,
+.range-day.range-end::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--accent-bg);
+}
+
+.range-day.range-start::before {
+  left: 50%;
+  right: 0;
+}
+
+.range-day.range-end::before {
+  left: 0;
+  right: 50%;
+}
+
+.range-day.single::before {
+  display: none;
+}
+
+.range-day.range-start > span,
+.range-day.range-end > span {
+  background: var(--series-1);
+  color: #fff;
+  font-weight: 700;
+}
+
+.range-day:active > span {
+  transform: scale(0.92);
+}
+
+.range-grid-slide.next {
+  animation: range-in-next 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.range-grid-slide.prev {
+  animation: range-in-prev 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes range-in-next {
+  from {
+    transform: translateX(40%);
+    opacity: 0;
+  }
+}
+
+@keyframes range-in-prev {
+  from {
+    transform: translateX(-40%);
+    opacity: 0;
+  }
+}
+
+.range-summary {
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Itemized parts in the job form */
+.parts-empty {
+  margin: 0 0 10px;
+}
+
+.parts-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.part-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  animation: part-in 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes part-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.part-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--accent-bg);
+  color: var(--series-1);
+}
+
+.part-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.part-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.part-date {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.part-cost {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.part-remove {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.part-remove:active {
+  background: var(--critical-bg);
+  color: var(--critical);
+}
+
+.part-add {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.part-add-line2 {
+  display: flex;
+  gap: 8px;
+}
+
+.part-add-line2 input {
+  flex: 1;
+  min-width: 0;
+}
+
+.part-add-line2 .btn {
+  flex-shrink: 0;
+}
+
+/* Paycheck PDF comparison */
+.cmp-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cmp-verdict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.cmp-verdict.good {
+  background: var(--good-bg);
+  color: var(--good-text);
+}
+
+.cmp-verdict.warn {
+  background: var(--warning-bg);
+  color: var(--text-primary);
+}
+
+.cmp-verdict.warn svg {
+  color: var(--warning);
+}
+
+.cmp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cmp-section h4 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.cmp-table {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) repeat(3, minmax(0, 1fr));
+  gap: 4px 8px;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.cmp-table > span,
+.cmp-row > span {
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmp-row {
+  display: contents;
+}
+
+.cmp-th {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cmp-table .cmp-label {
+  text-align: left;
+  color: var(--text-secondary);
+}
+
+.cmp-row .cmp-diff {
+  color: var(--text-muted);
+}
+
+.cmp-job .cmp-diff,
+.cmp-row.off .cmp-diff {
+  color: var(--critical);
+  font-weight: 600;
+}
+
+.cmp-job {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.cmp-job-top {
+  display: flex;
+  flex-direction: column;
+}
+
+.cmp-job-line {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.cmp-flag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.cmp-flag svg {
+  color: var(--warning);
+  flex-shrink: 0;
+}
+
+.cmp-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--good-text);
+  cursor: pointer;
+}
+
+.cmp-toggle-hint {
+  margin-left: auto;
+  font-weight: 500;
+  color: var(--series-1);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .sheet,
-  .sheet-backdrop,
+  .bs-sheet,
+  .bs-backdrop {
+    transition: none;
+  }
   .day-popup,
-  .day-popup-backdrop {
+  .day-popup-backdrop,
+  .range-grid-slide,
+  .part-row {
     animation: none;
   }
 }

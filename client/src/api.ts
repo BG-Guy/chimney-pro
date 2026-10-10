@@ -1,9 +1,11 @@
 import {
   jobTotal,
+  partsTotal,
   paymentDateClearingBalance,
   totalPaid,
   type GasLog,
   type Job,
+  type JobPart,
   type JobStatus,
   type LeadOutcome,
   type Payment,
@@ -90,12 +92,22 @@ function readJobs(): Job[] {
       : legacyAmount > 0
         ? [{ amount: legacyAmount, method: legacyMethod, date: legacyDate }]
         : [];
+    const loggedDate = job.loggedDate ?? job.createdAt?.slice(0, 10) ?? todayISO();
+    // Jobs from before parts were itemized only have a single parts cost — keep it as one
+    // "Parts" line dated when the job was logged.
+    const parts: JobPart[] = Array.isArray(job.parts)
+      ? job.parts
+      : Number(job.partsCost) > 0
+        ? [{ description: "Parts", cost: Number(job.partsCost), date: loggedDate }]
+        : [];
     const withMigratedFields: Job = {
       ...job,
       tagIds: job.tagIds ?? [],
       scheduledTimeRange: job.scheduledTimeRange ?? "",
-      loggedDate: job.loggedDate ?? job.createdAt?.slice(0, 10) ?? todayISO(),
+      loggedDate,
       items: (job.items ?? []).map((item: any) => ({ ...item, quantity: item.quantity ?? 1 })),
+      parts,
+      partsCost: partsTotal(parts),
       payments,
     };
     return {
@@ -158,7 +170,7 @@ export const api = {
     const jobs = readJobs();
     const now = nowISO();
     const payments = resolvePayments(job.payments);
-    const withPayments = { ...job, payments };
+    const withPayments = { ...job, payments, partsCost: partsTotal(job.parts) };
     const status = resolveJobStatus(withPayments);
     const created: Job = {
       ...withPayments,
@@ -179,7 +191,7 @@ export const api = {
     const idx = jobs.findIndex((j) => j.id === id);
     if (idx === -1) throw new Error("Job not found");
     const payments = resolvePayments(job.payments);
-    const withPayments = { ...job, payments };
+    const withPayments = { ...job, payments, partsCost: partsTotal(job.parts) };
     const status = resolveJobStatus(withPayments);
     const updated: Job = {
       ...withPayments,

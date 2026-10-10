@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import {
@@ -21,6 +21,9 @@ import { extractCustomerName } from "../customerName";
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import MonthWeekPicker from "../components/MonthWeekPicker";
 import JobsCalendarSheet from "../components/JobsCalendarSheet";
+import PaycheckCompareSheet from "../components/PaycheckCompareSheet";
+import { readCompanyReportPdf } from "../companyReport";
+import { comparePaycheck, type PaycheckComparison } from "../paycheckCompare";
 import DateButton from "../components/DateButton";
 import { currentMonthOption, monthRangeISO, recentMonths, type MonthOption } from "../dateBuckets";
 import { addDays, fmtISO, inRange, startOfWeek } from "../dateUtils";
@@ -41,6 +44,7 @@ import {
   CheckCircleIcon,
   DownloadIcon,
   CircleDotIcon,
+  FileCheckIcon,
 } from "../components/icons";
 
 function isoToDate(iso: string): Date {
@@ -126,6 +130,11 @@ export default function JobListPage() {
   const [copiedOriginalId, setCopiedOriginalId] = useState<number | null>(null);
   const [copiedNumberId, setCopiedNumberId] = useState<number | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [comparison, setComparison] = useState<PaycheckComparison | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [compareFileName, setCompareFileName] = useState("");
+  const [comparing, setComparing] = useState(false);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all");
   const [crewFilter, setCrewFilter] = useState<CrewFilter>("all");
@@ -239,6 +248,25 @@ export default function JobListPage() {
     setTimeout(() => setCopiedNumberId(null), 1500);
   }
 
+  async function handleComparePdf(file: File) {
+    setComparing(true);
+    try {
+      const report = await readCompanyReportPdf(file);
+      if (report.jobs.length === 0) {
+        alert("Couldn't find any jobs in that PDF. Make sure it's the company's finance report.");
+        return;
+      }
+      setComparison(comparePaycheck(report, jobs));
+      setCompareFileName(file.name);
+      setCompareOpen(true);
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't read that PDF. Make sure it's the company's finance report.");
+    } finally {
+      setComparing(false);
+    }
+  }
+
   async function handleDelete(job: Job) {
     if (!confirm(`Delete this job (#${job.id})?`)) return;
     await api.deleteJob(job.id!);
@@ -260,7 +288,13 @@ export default function JobListPage() {
 
   return (
     <div className="job-list">
-      {calendarOpen && <JobsCalendarSheet jobs={jobs} onClose={() => setCalendarOpen(false)} />}
+      <JobsCalendarSheet open={calendarOpen} jobs={jobs} onClose={() => setCalendarOpen(false)} />
+      <PaycheckCompareSheet
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        comparison={comparison}
+        fileName={compareFileName}
+      />
 
       <div style={{ display: "flex", gap: 8 }}>
         <input
@@ -352,6 +386,25 @@ export default function JobListPage() {
             >
               <DownloadIcon size={16} /> Export paycheck report
             </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={comparing}
+              onClick={() => pdfInputRef.current?.click()}
+            >
+              <FileCheckIcon size={16} /> {comparing ? "Reading PDF..." : "Compare with company report (PDF)"}
+            </button>
+            <input
+              ref={pdfInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) handleComparePdf(file);
+              }}
+            />
           </>
         )}
       </div>

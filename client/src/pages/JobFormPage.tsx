@@ -10,20 +10,37 @@ import {
   emptyJob,
   itemsTotal,
   jobTotal,
+  partsTotal,
   paymentDateClearingBalance,
   techProfit,
   totalPaid,
   type DepositMethod,
   type Job,
+  type JobPart,
   type Tag,
 } from "../types";
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import DateButton from "../components/DateButton";
 import { todayISO } from "../dateUtils";
 import { formatMoney } from "../format";
-import { ClipboardIcon, WrenchIcon, WalletIcon, CheckCircleIcon, ClockIcon } from "../components/icons";
+import {
+  ClipboardIcon,
+  CloseIcon,
+  WrenchIcon,
+  WalletIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  TagIcon,
+} from "../components/icons";
 
 const HOUR_RANGE_PRESETS = ["8-11", "9-12", "10-1", "11-2", "12-3", "1-4", "2-5"];
+
+function formatPartDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const sameYear = y === new Date().getFullYear();
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) });
+}
 
 const PAID_METHOD_OPTIONS: Choice<DepositMethod>[] = DEPOSIT_METHODS.map((m) => ({
   value: m,
@@ -38,6 +55,9 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [partName, setPartName] = useState("");
+  const [partPrice, setPartPrice] = useState("");
+  const canAddPart = partName.trim() !== "" && Number(partPrice) > 0;
 
   useEffect(() => {
     if (mode === "edit" && id) {
@@ -91,6 +111,32 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
 
   function removeItem(index: number) {
     setJob((prev) => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
+  }
+
+  function setParts(update: (parts: JobPart[]) => JobPart[]) {
+    setJob((prev) => {
+      const parts = update(prev.parts);
+      return { ...prev, parts, partsCost: partsTotal(parts) };
+    });
+  }
+
+  function addPart() {
+    if (!canAddPart) return;
+    const part: JobPart = { description: partName.trim(), cost: Number(partPrice), date: todayISO() };
+    setParts((parts) => [...parts, part]);
+    setPartName("");
+    setPartPrice("");
+  }
+
+  function removePart(index: number) {
+    setParts((parts) => parts.filter((_, i) => i !== index));
+  }
+
+  // Enter adds the part instead of submitting the whole job form.
+  function handlePartKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    addPart();
   }
 
   function updatePayment(index: number, field: "amount" | "method", value: string) {
@@ -289,18 +335,61 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
         </div>
       )}
 
-      <label>
-        Parts cost
-        <input
-          type="number"
-          step="0.01"
-          inputMode="decimal"
-          placeholder="0.00"
-          className="input-sm"
-          value={job.partsCost || ""}
-          onChange={(e) => updateField("partsCost", Number(e.target.value) || 0)}
-        />
-      </label>
+      <fieldset>
+        <legend>Parts</legend>
+        {job.parts.length === 0 ? (
+          <p className="empty-hint parts-empty">No parts yet — add each part you used with its price.</p>
+        ) : (
+          <ul className="parts-list">
+            {job.parts.map((part, index) => (
+              <li className="part-row" key={index}>
+                <span className="part-icon">
+                  <TagIcon size={16} />
+                </span>
+                <span className="part-info">
+                  <span className="part-name">{part.description || "Part"}</span>
+                  <span className="part-date">Added {formatPartDate(part.date)}</span>
+                </span>
+                <span className="part-cost">{formatMoney(part.cost)}</span>
+                <button
+                  type="button"
+                  className="part-remove"
+                  aria-label={`Remove ${part.description || "part"}`}
+                  onClick={() => removePart(index)}
+                >
+                  <CloseIcon size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="part-add">
+          <input
+            type="text"
+            placeholder="Part name, e.g. Chimney cap"
+            value={partName}
+            onChange={(e) => setPartName(e.target.value)}
+            onKeyDown={handlePartKeyDown}
+          />
+          <div className="part-add-line2">
+            <input
+              type="number"
+              step="0.01"
+              inputMode="decimal"
+              placeholder="Price"
+              value={partPrice}
+              onChange={(e) => setPartPrice(e.target.value)}
+              onKeyDown={handlePartKeyDown}
+            />
+            <button type="button" className="btn btn-primary" disabled={!canAddPart} onClick={addPart}>
+              + Add part
+            </button>
+          </div>
+        </div>
+
+        <p className="subtotal">Parts total: {formatMoney(partsTotal(job.parts))}</p>
+      </fieldset>
 
       <p className="total">Total job cost: {formatMoney(jobTotal(job))}</p>
       <p className="subtotal">Balance remaining: {formatMoney(balanceRemaining(job))}</p>

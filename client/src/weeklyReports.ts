@@ -8,7 +8,7 @@ import {
   type Job,
   type JobStatus,
 } from "./types";
-import { addDays, fmtISO, inRange } from "./dateUtils";
+import { fmtISO, inRange } from "./dateUtils";
 import { computePeriodMetrics, type PeriodMetrics } from "./insights";
 import { extractCustomerName } from "./customerName";
 
@@ -43,8 +43,13 @@ function shortDate(d: Date): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function buildWeeklyReport(jobs: Job[], gasLogs: GasLog[], weekStart: Date, label: string): WeeklyReport {
-  const weekEnd = addDays(weekStart, 6);
+export function buildWeeklyReport(
+  jobs: Job[],
+  gasLogs: GasLog[],
+  weekStart: Date,
+  weekEnd: Date,
+  label: string
+): WeeklyReport {
   const weekStartISO = fmtISO(weekStart);
   const weekEndISO = fmtISO(weekEnd);
 
@@ -117,7 +122,7 @@ export function downloadWeeklyReportCsv(report: WeeklyReport) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `weekly-report-${report.weekStartISO}.csv`;
+  a.download = `report-${report.weekStartISO}-to-${report.weekEndISO}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

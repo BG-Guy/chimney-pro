@@ -35,6 +35,7 @@ import {
   SaveIcon,
   FolderIcon,
   GripIcon,
+  HistoryIcon,
 } from "../components/icons";
 
 // One draggable row in the route. Only the grip handle starts a drag, so the row's own
@@ -489,12 +490,12 @@ export default function RoutePlanPage() {
           <div className="route-reorder-hint">
             <GripIcon size={14} />
             <span>Drag a stop by its handle to change the order.</span>
-            {manualOrder && (
-              <button type="button" className="btn btn-sm" onClick={() => setManualOrder(null)}>
-                Reset order
-              </button>
-            )}
           </div>
+          {manualOrder && (
+            <button type="button" className="btn btn-block" onClick={() => setManualOrder(null)}>
+              <HistoryIcon size={16} /> Let the app sort it again
+            </button>
+          )}
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={routeStops.map((s) => s.id)} strategy={verticalListSortingStrategy}>
           <div className="route-stops">

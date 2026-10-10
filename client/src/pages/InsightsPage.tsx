@@ -3,17 +3,10 @@ import { api } from "../api";
 import { computeInsights, computePeriodMetrics, type Insights, type PeriodMetrics } from "../insights";
 import { computeGasInsights, type GasInsights } from "../gasInsights";
 import { buildWeeklyReport, downloadWeeklyReportCsv } from "../weeklyReports";
-import {
-  currentMonthOption,
-  currentWeekOfMonthN,
-  recentMonths,
-  weeksOfMonth,
-  type MonthOption,
-} from "../dateBuckets";
 import { addDays, computeDateRanges, fmtISO } from "../dateUtils";
-import MonthWeekPicker from "../components/MonthWeekPicker";
+import DateRangeSheet, { formatRangeLabel } from "../components/DateRangeSheet";
 import { DEPOSIT_METHOD_ICON, type GasLog, type Job } from "../types";
-import { DownloadIcon, CircleDotIcon } from "../components/icons";
+import { CalendarIcon, DownloadIcon, CircleDotIcon } from "../components/icons";
 import { formatCompactMoney, formatMoney } from "../format";
 
 function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -223,31 +216,22 @@ function PaidMethods({ counts }: { counts: Insights["paidMethodCounts"] }) {
   );
 }
 
-function defaultWeekNFor(m: MonthOption): number {
-  const real = currentMonthOption();
-  if (m.year === real.year && m.month === real.month) return currentWeekOfMonthN(m.year, m.month);
-  const w = weeksOfMonth(m.year, m.month);
-  return w[w.length - 1]?.n ?? 1;
+function isoToDate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
 }
 
 function QuickInsightsReport({ jobs, gasLogs }: { jobs: Job[]; gasLogs: GasLog[] }) {
-  const months = useMemo(() => recentMonths(12), []);
-  const [selectedMonth, setSelectedMonth] = useState<MonthOption>(() => currentMonthOption());
-  const [selectedWeekN, setSelectedWeekN] = useState<number>(() => defaultWeekNFor(currentMonthOption()));
-  const weeks = useMemo(() => weeksOfMonth(selectedMonth.year, selectedMonth.month), [selectedMonth]);
+  const [range, setRange] = useState(() => {
+    const { weekStart, weekEnd } = computeDateRanges();
+    return { start: fmtISO(weekStart), end: fmtISO(weekEnd) };
+  });
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const rangeLabel = formatRangeLabel(range.start, range.end);
 
-  function handleSelectMonth(m: MonthOption) {
-    setSelectedMonth(m);
-    setSelectedWeekN(defaultWeekNFor(m));
-  }
-
-  const activeWeek = weeks.find((w) => w.n === selectedWeekN) ?? weeks[weeks.length - 1];
   const report = useMemo(
-    () =>
-      activeWeek
-        ? buildWeeklyReport(jobs, gasLogs, activeWeek.weekStart, `${selectedMonth.label} · ${activeWeek.label}`)
-        : null,
-    [jobs, gasLogs, activeWeek, selectedMonth]
+    () => buildWeeklyReport(jobs, gasLogs, isoToDate(range.start), isoToDate(range.end), rangeLabel),
+    [jobs, gasLogs, range, rangeLabel]
   );
 
   return (
@@ -256,19 +240,25 @@ function QuickInsightsReport({ jobs, gasLogs }: { jobs: Job[]; gasLogs: GasLog[]
         <h3>Quick insights report</h3>
       </div>
 
-      <MonthWeekPicker
-        months={months}
-        selectedMonth={selectedMonth}
-        onSelectMonth={handleSelectMonth}
-        weeks={weeks}
-        selectedWeekN={selectedWeekN}
-        onSelectWeekN={setSelectedWeekN}
+      <button type="button" className="range-button" onClick={() => setPickerOpen(true)}>
+        <CalendarIcon size={18} />
+        <span className="range-button-text">
+          <span className="range-button-caption">Date range</span>
+          <strong>{rangeLabel}</strong>
+        </span>
+        <span className="range-button-change">Change</span>
+      </button>
+
+      <DateRangeSheet
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        startISO={range.start}
+        endISO={range.end}
+        onApply={(start, end) => setRange({ start, end })}
       />
 
       {report && (
         <>
-          <p className="card-caption">{report.dateRange}</p>
-
           <div className="stat-grid">
             <StatTile label="Jobs sold" value={String(report.metrics.jobCount)} />
             <StatTile label="Revenue" value={formatCompactMoney(report.metrics.revenue)} />
@@ -283,7 +273,7 @@ function QuickInsightsReport({ jobs, gasLogs }: { jobs: Job[]; gasLogs: GasLog[]
           </div>
 
           {report.jobs.length === 0 ? (
-            <p className="empty-hint">No jobs sold this week.</p>
+            <p className="empty-hint">No jobs sold in this date range.</p>
           ) : (
             <div className="week-report-jobs">
               {report.jobs.map((j) => (

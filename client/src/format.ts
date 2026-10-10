@@ -6,7 +6,8 @@ function trimTrailingZeros(s: string): string {
 
 export function formatMoney(n: number): string {
   const value = Number(n) || 0;
-  return `$${trimTrailingZeros(value.toFixed(2))}`;
+  const sign = Math.round(value * 100) < 0 ? "-" : "";
+  return `${sign}$${trimTrailingZeros(Math.abs(value).toFixed(2))}`;
 }
 
 export function formatCompactMoney(n: number): string {

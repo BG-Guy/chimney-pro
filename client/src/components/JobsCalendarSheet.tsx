@@ -8,6 +8,7 @@ import { formatMoney } from "../format";
 import { fmtISO, todayISO } from "../dateUtils";
 import { parseScheduledStartMinutes } from "../scheduledTime";
 import { BackIcon, ClipboardIcon } from "./icons";
+import BottomSheet from "./BottomSheet";
 
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 const MAX_DOTS = 3;
@@ -16,7 +17,15 @@ function startMinutes(job: Job): number {
   return parseScheduledStartMinutes(job.scheduledTimeRange || null) ?? Number.MAX_SAFE_INTEGER;
 }
 
-export default function JobsCalendarSheet({ jobs, onClose }: { jobs: Job[]; onClose: () => void }) {
+export default function JobsCalendarSheet({
+  open,
+  jobs,
+  onClose,
+}: {
+  open: boolean;
+  jobs: Job[];
+  onClose: () => void;
+}) {
   const navigate = useNavigate();
   const [month, setMonth] = useState(() => {
     const now = new Date();
@@ -60,10 +69,8 @@ export default function JobsCalendarSheet({ jobs, onClose }: { jobs: Job[]; onCl
     setTimeout(() => setCopiedKey((cur) => (cur === key ? null : cur)), 1500);
   }
 
-  return (
-    <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" role="dialog" aria-label="Scheduled jobs calendar">
-        <div className="sheet-handle" />
+  const calendar = (
+    <>
         <div className="calendar-header">
           <button type="button" className="btn btn-sm" onClick={() => shiftMonth(-1)} aria-label="Previous month">
             <BackIcon size={16} />
@@ -120,9 +127,10 @@ export default function JobsCalendarSheet({ jobs, onClose }: { jobs: Job[]; onCl
         <button type="button" className="btn btn-block" onClick={onClose}>
           Close
         </button>
-      </div>
+    </>
+  );
 
-      {selectedDay && (
+  const popup = selectedDay && (
         <div className="day-popup-backdrop" onClick={(e) => e.target === e.currentTarget && setSelectedDay(null)}>
           <div className="day-popup" role="dialog" aria-label="Jobs on this day">
             <div className="card-header">
@@ -171,7 +179,11 @@ export default function JobsCalendarSheet({ jobs, onClose }: { jobs: Job[]; onCl
             })}
           </div>
         </div>
-      )}
-    </div>
+  );
+
+  return (
+    <BottomSheet open={open} onClose={onClose} ariaLabel="Scheduled jobs calendar" overlay={popup}>
+      {calendar}
+    </BottomSheet>
   );
 }

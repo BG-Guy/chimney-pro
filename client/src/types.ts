@@ -33,11 +33,21 @@ export interface Payment {
   date: string | null;
 }
 
+// A part bought for the job, stamped with the day it was added.
+export interface JobPart {
+  description: string;
+  cost: number;
+  date: string;
+}
+
 export interface Job {
   id?: number;
   rawTicketText: string;
   loggedDate: string;
   items: JobItem[];
+  parts: JobPart[];
+  // Always the sum of `parts` — kept as its own field so every report and calculation that
+  // reads the parts cost keeps working unchanged.
   partsCost: number;
   scheduledDate: string | null;
   scheduledTimeRange: string;
@@ -83,6 +93,7 @@ export function emptyJob(): Job {
     rawTicketText: "",
     loggedDate: todayISO(),
     items: [{ description: "", cost: 0, quantity: 1 }],
+    parts: [],
     partsCost: 0,
     scheduledDate: null,
     scheduledTimeRange: "",
@@ -97,6 +108,10 @@ export function emptyJob(): Job {
 
 export function itemsTotal(job: Job): number {
   return job.items.reduce((sum, item) => sum + (Number(item.cost) || 0) * (Number(item.quantity) || 1), 0);
+}
+
+export function partsTotal(parts: JobPart[]): number {
+  return parts.reduce((sum, part) => sum + (Number(part.cost) || 0), 0);
 }
 
 export function totalPaid(job: Job): number {
