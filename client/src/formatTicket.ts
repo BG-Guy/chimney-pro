@@ -1,4 +1,4 @@
-import { balanceRemaining, jobTotal, type Job } from "./types";
+import { balanceRemaining, jobTotal, paymentCharged, type Job } from "./types";
 import { formatMoney as money } from "./format";
 
 function ordinal(n: number): string {
@@ -27,7 +27,9 @@ export function formatTicketText(job: Job): string {
 
   for (const p of job.payments) {
     if (!(p.amount > 0)) continue;
-    lines.push(p.method ? `${money(p.amount)} ${p.method.toLowerCase()}` : money(p.amount));
+    // Card lines show what was actually charged, so they add up to the total above.
+    const charged = paymentCharged(p);
+    lines.push(p.method ? `${money(charged)} ${p.method.toLowerCase()}` : money(charged));
   }
 
   if (job.status === "done") {

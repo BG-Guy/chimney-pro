@@ -1,4 +1,4 @@
-import { jobTotal, techProfit, type Job } from "./types";
+import { jobTotal, paymentCharged, roundCents, techProfit, type Job } from "./types";
 import { extractTicketNumber } from "./ticketNumber";
 import { extractCustomerName } from "./customerName";
 import { inRange } from "./dateUtils";
@@ -23,7 +23,7 @@ export type PaycheckLine = Record<CompareField, number>;
 // Balance follows the report's convention: tech profit minus the cash the tech kept.
 export function appPaycheckLine(job: Job): PaycheckLine {
   const byMethod = (method: string) =>
-    job.payments.reduce((sum, p) => sum + (p.method === method ? Number(p.amount) || 0 : 0), 0);
+    roundCents(job.payments.reduce((sum, p) => sum + (p.method === method ? paymentCharged(p) : 0), 0));
   const profit = techProfit(job);
   const cash = byMethod("Cash");
   return {
@@ -32,7 +32,7 @@ export function appPaycheckLine(job: Job): PaycheckLine {
     credit: byMethod("CC"),
     check: byMethod("Check"),
     techProfit: profit,
-    balanceTech: profit - cash,
+    balanceTech: roundCents(profit - cash),
   };
 }
 

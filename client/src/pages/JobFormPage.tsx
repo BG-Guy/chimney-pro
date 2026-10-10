@@ -2,17 +2,20 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import {
-  CC_FEE_RATE,
   DEPOSIT_METHODS,
   DEPOSIT_METHOD_ICON,
   balanceRemaining,
   cashOwedToCompany,
+  ccSurcharge,
   emptyJob,
   itemsTotal,
   jobTotal,
   partsTotal,
+  paymentCharged,
   paymentDateClearingBalance,
+  roundCents,
   techProfit,
+  totalCcFee,
   totalPaid,
   type DepositMethod,
   type Job,
@@ -168,12 +171,14 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
 
   function fillAllOfBalance(index: number) {
     setJob((prev) => {
+      // Amounts are the part of the price each payment covers (a card adds 3.5% on top),
+      // so the rest of the balance is the items total minus the other payments' amounts.
       const others = prev.payments.reduce(
         (sum, p, i) => (i === index ? sum : sum + (Number(p.amount) || 0)),
         0
       );
       const payments = [...prev.payments];
-      payments[index] = { ...payments[index], amount: Math.max(0, jobTotal(prev) - others) };
+      payments[index] = { ...payments[index], amount: Math.max(0, roundCents(itemsTotal(prev) - others)) };
       return { ...prev, payments };
     });
   }
@@ -306,7 +311,8 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
             />
             {payment.method === "CC" && payment.amount > 0 && (
               <p className="cash-owed-callout">
-                +{formatMoney(payment.amount * CC_FEE_RATE)} CC fee (3%) on this payment
+                Card charged {formatMoney(paymentCharged(payment))} — includes{" "}
+                {formatMoney(paymentCharged(payment) - payment.amount)} card fee (3.5%)
               </p>
             )}
             <button type="button" className="btn btn-danger" onClick={() => removePayment(index)}>
@@ -392,8 +398,14 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
       </fieldset>
 
       <p className="total">Total job cost: {formatMoney(jobTotal(job))}</p>
+      {ccSurcharge(job) > 0 && (
+        <p className="form-hint">
+          Includes {formatMoney(ccSurcharge(job))} card fee (3.5% on the card payment). The company keeps{" "}
+          {formatMoney(totalCcFee(job))} of the card charge before the 25% split.
+        </p>
+      )}
       <p className="subtotal">Balance remaining: {formatMoney(balanceRemaining(job))}</p>
-      <p className="subtotal">Tech profit (25% after parts): {formatMoney(techProfit(job))}</p>
+      <p className="subtotal">Tech profit (25% after parts and card fee): {formatMoney(techProfit(job))}</p>
       {cashOwedToCompany(job) > 0 && (
         <p className="cash-owed-callout">
           Paid in cash — tech owes company {formatMoney(cashOwedToCompany(job))}
