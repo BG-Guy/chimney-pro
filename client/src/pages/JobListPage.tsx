@@ -261,7 +261,8 @@ export default function JobListPage() {
       setCompareOpen(true);
     } catch (err) {
       console.error(err);
-      alert("Couldn't read that PDF. Make sure it's the company's finance report.");
+      const reason = err instanceof Error ? err.message : String(err);
+      alert(`Couldn't read that PDF. Make sure it's the company's finance report.\n\n(${reason})`);
     } finally {
       setComparing(false);
     }

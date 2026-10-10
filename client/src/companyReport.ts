@@ -133,8 +133,11 @@ export function parseCompanyReport(pages: TextItem[][]): CompanyReport {
 
 // pdf.js is big, so it's only loaded the moment a report is actually opened.
 export async function readCompanyReportPdf(file: File): Promise<CompanyReport> {
-  const pdfjs = await import("pdfjs-dist");
-  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  // The legacy build, not the default one: the default build calls brand-new JavaScript
+  // (Promise.try, Map.getOrInsertComputed, Math.sumPrecise) that iPhone Safari doesn't have
+  // yet, so it crashes there. The legacy build carries fallbacks for all of them.
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const workerUrl = (await import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url")).default;
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
   const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
