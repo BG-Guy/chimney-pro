@@ -22,6 +22,9 @@ import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import MonthWeekPicker from "../components/MonthWeekPicker";
 import JobsCalendarSheet from "../components/JobsCalendarSheet";
 import PaycheckCompareSheet from "../components/PaycheckCompareSheet";
+import JobTicketSheet from "../components/JobTicketSheet";
+import { extractAddress } from "../address";
+import { navigationUrl } from "../navigation";
 import { readCompanyReportPdf } from "../companyReport";
 import { comparePaycheck, type PaycheckComparison } from "../paycheckCompare";
 import DateButton from "../components/DateButton";
@@ -45,6 +48,7 @@ import {
   DownloadIcon,
   CircleDotIcon,
   FileCheckIcon,
+  MapPinIcon,
 } from "../components/icons";
 
 function isoToDate(iso: string): Date {
@@ -130,6 +134,7 @@ export default function JobListPage() {
   const [copiedOriginalId, setCopiedOriginalId] = useState<number | null>(null);
   const [copiedNumberId, setCopiedNumberId] = useState<number | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [ticketJob, setTicketJob] = useState<Job | null>(null);
   const [comparison, setComparison] = useState<PaycheckComparison | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const [compareFileName, setCompareFileName] = useState("");
@@ -289,6 +294,7 @@ export default function JobListPage() {
 
   return (
     <div className="job-list">
+      <JobTicketSheet job={ticketJob} onClose={() => setTicketJob(null)} />
       <JobsCalendarSheet open={calendarOpen} jobs={jobs} onClose={() => setCalendarOpen(false)} />
       <PaycheckCompareSheet
         open={compareOpen}
@@ -449,8 +455,17 @@ export default function JobListPage() {
             const OutcomeIcon = LEAD_OUTCOME_ICON[outcome] ?? CircleDotIcon;
             const ticketNumber = extractTicketNumber(job.rawTicketText);
             const customerName = extractCustomerName(job.rawTicketText);
+            const address = extractAddress(job.rawTicketText);
             return (
-              <div className="job-card" key={job.id}>
+              <div
+                className="job-card job-card-tappable"
+                key={job.id}
+                onClick={(e) => {
+                  // Buttons and links on the card do their own thing; a tap anywhere else opens the ticket.
+                  if ((e.target as HTMLElement).closest("button, a")) return;
+                  setTicketJob(job);
+                }}
+              >
                 {customerName && <p className="job-card-customer">{customerName}</p>}
                 <div className="job-card-top">
                   <div className="job-card-top-left">
@@ -546,6 +561,14 @@ export default function JobListPage() {
                   <p className="cash-owed-callout">
                     Tech collected cash — owes company {formatMoney(cashOwedToCompany(job))}
                   </p>
+                )}
+
+                {address ? (
+                  <a className="btn btn-primary btn-block" href={navigationUrl(address)} target="_blank" rel="noreferrer">
+                    <MapPinIcon size={16} /> Navigate
+                  </a>
+                ) : (
+                  <p className="empty-hint">No address found in the ticket</p>
                 )}
 
                 <div className="job-card-actions">

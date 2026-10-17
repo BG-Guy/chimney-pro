@@ -1936,3 +1936,48 @@ legend {
     animation: none;
   }
 }
+
+/* Tap a job card to open its ticket */
+.job-card-tappable {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+.job-card-tappable:active {
+  transform: scale(0.99);
+  background: var(--surface-1);
+}
+
+.ticket-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ticket-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ticket-block-head h4 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.ticket-text {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+}
