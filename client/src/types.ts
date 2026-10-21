@@ -120,8 +120,28 @@ export function roundCents(n: number): number {
   return Math.round(Number((n * 100).toFixed(6))) / 100;
 }
 
-export function totalPaid(job: Job): number {
+// Paying by credit card adds a 3% card fee on top of the payment. The fee is its own number:
+// it's part of what the customer paid, but never part of what they paid toward the job, so
+// it can't eat into the balance. Paying $299 by card toward a $600 job = $307.97 paid
+// ($299 + $8.97 fee), balance $301.
+export const CC_FEE_RATE = 0.03;
+
+export function paymentCardFee(p: Payment): number {
+  return p.method === "CC" ? roundCents((Number(p.amount) || 0) * CC_FEE_RATE) : 0;
+}
+
+export function totalCardFee(job: Job): number {
+  return roundCents(job.payments.reduce((sum, p) => sum + paymentCardFee(p), 0));
+}
+
+// What the payments cover of the job's price — the only number the balance uses.
+export function paidTowardJob(job: Job): number {
   return roundCents(job.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0));
+}
+
+// Everything the customer paid, card fees included.
+export function totalPaid(job: Job): number {
+  return roundCents(paidTowardJob(job) + totalCardFee(job));
 }
 
 // A job is sold the day the customer first pays (a deposit or the full amount), not the
@@ -141,7 +161,7 @@ export function jobTotal(job: Job): number {
 }
 
 export function balanceRemaining(job: Job): number {
-  return roundCents(jobTotal(job) - totalPaid(job));
+  return roundCents(jobTotal(job) - paidTowardJob(job));
 }
 
 // Tech profit is 25% of the job total, with parts cost deducted first.

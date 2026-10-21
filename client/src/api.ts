@@ -2,7 +2,7 @@ import {
   jobTotal,
   partsTotal,
   paymentDateClearingBalance,
-  totalPaid,
+  paidTowardJob,
   type GasLog,
   type Job,
   type JobPart,
@@ -64,7 +64,7 @@ function resolvePayments(payments: Payment[]): Payment[] {
 // from that, not picked manually: a balance left on the table means a deposit was taken
 // and the rest of the job is still to come.
 function resolveLeadOutcome(job: Job): LeadOutcome {
-  const paid = totalPaid(job);
+  const paid = paidTowardJob(job);
   const total = jobTotal(job);
   if (paid > 0 && paid < total) return "deposit";
   return "estimate";
@@ -75,7 +75,7 @@ function resolveLeadOutcome(job: Job): LeadOutcome {
 // counts as done.
 function resolveJobStatus(job: Job): JobStatus {
   const total = jobTotal(job);
-  const paid = totalPaid(job);
+  const paid = paidTowardJob(job);
   return paid >= total ? "done" : "awaiting";
 }
 

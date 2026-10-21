@@ -13,6 +13,9 @@ import {
   paymentDateClearingBalance,
   roundCents,
   techProfit,
+  paidTowardJob,
+  paymentCardFee,
+  totalCardFee,
   totalPaid,
   type DepositMethod,
   type Job,
@@ -204,7 +207,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
 
   if (loading) return <p className="loading-text">Loading job...</p>;
 
-  const isDeposit = totalPaid(job) > 0 && totalPaid(job) < jobTotal(job);
+  const isDeposit = paidTowardJob(job) > 0 && paidTowardJob(job) < jobTotal(job);
   const isDone = balanceRemaining(job) <= 0;
 
   return (
@@ -304,6 +307,12 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
               onChange={(v) => updatePaymentDate(index, v)}
               placeholder="Date paid (defaults to today)"
             />
+            {paymentCardFee(payment) > 0 && (
+              <p className="cash-owed-callout">
+                Paid {formatMoney(payment.amount + paymentCardFee(payment))} by card — includes{" "}
+                {formatMoney(paymentCardFee(payment))} card fee (3%). {formatMoney(payment.amount)} goes toward the job.
+              </p>
+            )}
             <button type="button" className="btn btn-danger" onClick={() => removePayment(index)}>
               Remove payment
             </button>
@@ -313,6 +322,11 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
           + Add payment
         </button>
         <p className="subtotal">Total paid: {formatMoney(totalPaid(job))}</p>
+        {totalCardFee(job) > 0 && (
+          <p className="form-hint">
+            Includes {formatMoney(totalCardFee(job))} card fee — {formatMoney(paidTowardJob(job))} goes toward the job.
+          </p>
+        )}
       </fieldset>
 
       {(isDeposit || job.needsRepairTeam) && (
