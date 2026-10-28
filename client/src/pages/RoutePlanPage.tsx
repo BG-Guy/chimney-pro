@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -23,7 +23,6 @@ import { extractTicketNumber } from "../ticketNumber";
 import { geocodeAll, type LatLng } from "../geocode";
 import { optimizeStopOrder } from "../routeOptimize";
 import { buildGoogleMapsRouteUrl } from "../googleMapsRoute";
-import { splitTickets, ticketDateISO } from "../splitTickets";
 import { getCurrentLocation } from "../currentLocation";
 import { saveRoute, loadSavedRoute, type SavedRoute } from "../savedRoute";
 import { loadReviewTemplate } from "../reviewTemplate";
@@ -79,11 +78,6 @@ type BuildState = "idle" | "geocoding";
 
 let nextStopId = 1;
 
-function formatDayLabel(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
-}
-
 export default function RoutePlanPage() {
   const [pastedText, setPastedText] = useState("");
   const [stops, setStops] = useState<Stop[]>([]);
@@ -115,11 +109,6 @@ export default function RoutePlanPage() {
   // Stop ids in the order the user dragged them into — null means "use the app's
   // suggested order". Cleared whenever the route is rebuilt.
   const [manualOrder, setManualOrder] = useState<number[] | null>(null);
-
-  // Set when the route came from "Import tomorrow's tickets": the day(s) on those tickets,
-  // and whether the finished route still needs saving.
-  const [importedDays, setImportedDays] = useState<string[] | null>(null);
-  const [autoSavePending, setAutoSavePending] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -175,36 +164,6 @@ export default function RoutePlanPage() {
     resetRoute();
   }
 
-  // One tap for the dispatch texts: the Shortcut has stacked every ticket that came in today
-  // onto the clipboard, so read them all, add each as a stop, build the route, and save it.
-  async function handleImportTexts() {
-    let text = "";
-    try {
-      text = await navigator.clipboard.readText();
-    } catch {
-      alert("Couldn't read the clipboard. Tap Paste if your phone asks, or check the Shortcut copied the tickets.");
-      return;
-    }
-    const tickets = splitTickets(text).filter((t) => extractAddress(t) || extractTicketNumber(t));
-    if (tickets.length === 0) {
-      alert("No job tickets found on the clipboard. The Shortcut copies them when a ticket text comes in.");
-      return;
-    }
-    const imported: Stop[] = tickets.map((t, i) => ({
-      id: nextStopId++,
-      name: extractCustomerName(t)?.trim() || `Stop ${i + 1}`,
-      address: extractAddress(t)?.trim() ?? "",
-      time: extractScheduledTime(t)?.trim() ?? "",
-      rawText: t,
-    }));
-    const days = [...new Set(tickets.map(ticketDateISO).filter((d): d is string => !!d))].sort();
-    setStops(imported);
-    setPastedText("");
-    setImportedDays(days);
-    setAutoSavePending(true);
-    await handleCalculateRoute(imported);
-  }
-
   function handleRemoveStop(id: number) {
     setStops((prev) => prev.filter((s) => s.id !== id));
     resetRoute();
@@ -216,14 +175,14 @@ export default function RoutePlanPage() {
   // then the last stop placed so far). A stop whose address our free geocoder can't
   // confirm just keeps its paste-order position within its group instead of blocking
   // anything; Google Maps still finds it fine from the raw address text.
-  async function handleCalculateRoute(list: Stop[] = stops) {
-    if (list.length < 1) return;
+  async function handleCalculateRoute() {
+    if (stops.length < 1) return;
 
     setBuildState("geocoding");
     resetRoute();
 
-    const withAddress = list.filter((s) => s.address);
-    const noAddress = list.filter((s) => !s.address);
+    const withAddress = stops.filter((s) => s.address);
+    const noAddress = stops.filter((s) => !s.address);
     setNoAddressStops(noAddress);
 
     if (withAddress.length === 0) {
@@ -352,13 +311,6 @@ export default function RoutePlanPage() {
     return buildGoogleMapsRouteUrl(routeStops.map((s) => pointById[s.id] ?? s.address));
   }, [routeStops, pointById]);
 
-  // An imported day is saved as soon as its route is built, so it's there next time the app opens.
-  useEffect(() => {
-    if (!autoSavePending || buildState !== "idle" || !routeStops || !mapsUrl) return;
-    setAutoSavePending(false);
-    handleSaveRoute();
-  }, [autoSavePending, buildState, routeStops, mapsUrl]); // eslint-disable-line react-hooks/exhaustive-deps
-
   function handleDragEnd({ active, over }: DragEndEvent) {
     if (!routeStops || !over || active.id === over.id) return;
     const ids = routeStops.map((s) => s.id);
@@ -371,26 +323,7 @@ export default function RoutePlanPage() {
 
   return (
     <div className="job-list">
-      <div className="import-day-card">
-        <button
-          type="button"
-          className="btn btn-primary btn-block"
-          disabled={buildState === "geocoding"}
-          onClick={handleImportTexts}
-        >
-          <CalendarIcon size={18} /> {buildState === "geocoding" && importedDays ? "Planning your day..." : "Import tomorrow's tickets"}
-        </button>
-        {importedDays ? (
-          <p className="import-day-summary">
-            {importedDays.length > 0 ? importedDays.map(formatDayLabel).join(" & ") : "Your day"} · {stops.length} job
-            {stops.length === 1 ? "" : "s"}
-          </p>
-        ) : (
-          <p className="empty-hint">Adds every ticket text that came in today, plans the route and saves it.</p>
-        )}
-      </div>
-
-      <p className="empty-hint">Or paste a job ticket, click Add, and repeat for each stop.</p>
+      <p className="empty-hint">Paste a job ticket, click Add, and repeat for each stop.</p>
 
       <form
         className="job-form"
@@ -477,7 +410,7 @@ export default function RoutePlanPage() {
         type="button"
         className="btn btn-primary btn-block"
         disabled={stops.length < 1 || buildState === "geocoding"}
-        onClick={() => handleCalculateRoute()}
+        onClick={handleCalculateRoute}
       >
         {buildState === "geocoding" ? (
           "Sorting by time..."

@@ -1981,24 +1981,3 @@ legend {
   user-select: text;
   -webkit-user-select: text;
 }
-
-/* Route tab: one-tap import of the day's ticket texts */
-.import-day-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--accent-bg);
-}
-
-.import-day-card .empty-hint {
-  margin: 0;
-}
-
-.import-day-summary {
-  margin: 0;
-  font-weight: 700;
-  text-align: center;
-}
