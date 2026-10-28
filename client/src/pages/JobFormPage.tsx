@@ -26,6 +26,8 @@ import {
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import DateButton from "../components/DateButton";
 import Switch from "../components/Switch";
+import ScanItemsSheet from "../components/ScanItemsSheet";
+import type { ScannedItem } from "../itemScan";
 import { todayISO } from "../dateUtils";
 import { formatMoney } from "../format";
 import { extractCustomerName } from "../customerName";
@@ -41,6 +43,7 @@ import {
   ClockIcon,
   TagIcon,
   PlusIcon,
+  ScanIcon,
 } from "../components/icons";
 
 const HOUR_RANGE_PRESETS = ["8-11", "9-12", "10-1", "11-2", "12-3", "1-4", "2-5"];
@@ -67,6 +70,7 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [partName, setPartName] = useState("");
   const [partPrice, setPartPrice] = useState("");
+  const [scanOpen, setScanOpen] = useState(false);
   const canAddPart = partName.trim() !== "" && Number(partPrice) > 0;
   // The phone frame the save bar is pinned into — looked up once the page is on screen.
   const [viewport, setViewport] = useState<Element | null>(null);
@@ -124,6 +128,18 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
 
   function removeItem(index: number) {
     setJob((prev) => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
+  }
+
+  // Items read from a CRM screenshot go after whatever's already filled in; the empty
+  // starter row a new job begins with is dropped.
+  function addScannedItems(scanned: ScannedItem[]) {
+    setJob((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items.filter((item) => item.description.trim() || Number(item.cost) > 0),
+        ...scanned.map((s) => ({ description: s.description, cost: s.cost, quantity: s.quantity })),
+      ],
+    }));
   }
 
   function setParts(update: (parts: JobPart[]) => JobPart[]) {
@@ -311,7 +327,11 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
           <button type="button" className="row-button" onClick={addItem}>
             <PlusIcon size={19} /> Add item
           </button>
+          <button type="button" className="row-button" onClick={() => setScanOpen(true)}>
+            <ScanIcon size={19} /> Scan items from screenshot
+          </button>
         </div>
+        <ScanItemsSheet open={scanOpen} onClose={() => setScanOpen(false)} onAdd={addScannedItems} />
         <p className="group-footer">
           Items subtotal <strong>{formatMoney(itemsTotal(job))}</strong>
         </p>

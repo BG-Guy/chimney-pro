@@ -1990,6 +1990,123 @@ input[type="number"]::-webkit-inner-spin-button {
   }
 }
 
+/* Scan items from a CRM screenshot */
+.scan-reading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+.scan-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--fill);
+  overflow: hidden;
+}
+
+.scan-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 200ms ease;
+}
+
+.scan-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px 10px 10px;
+}
+
+.scan-row.off .scan-fields {
+  opacity: 0.45;
+}
+
+.scan-check {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+.scan-check-empty {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--sep-strong);
+}
+
+.scan-fields {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scan-name {
+  width: 100%;
+  min-height: 36px;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.scan-line2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scan-qty,
+.scan-price {
+  height: 36px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 9px;
+  outline: none;
+  background: var(--fill-2);
+  color: var(--text);
+  font-size: 16px;
+}
+
+.scan-qty {
+  width: 64px;
+  text-align: center;
+}
+
+.scan-price {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+
+.scan-times {
+  color: var(--text-3);
+}
+
+.scan-match {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 16px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--good-text);
+}
+
 /* Calendar (scheduled jobs + date range) */
 .calendar-header {
   display: flex;
