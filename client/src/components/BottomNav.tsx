@@ -1,8 +1,7 @@
 import { NavLink } from "react-router-dom";
-import { PlusCircleIcon, ChartIcon, ListIcon, FuelIcon, MapPinIcon, SettingsIcon } from "./icons";
+import { PlusCircleIcon, ChartIcon, ListIcon, MapPinIcon, SettingsIcon } from "./icons";
 
 const TABS = [
-  { to: "/gas", label: "Gas", icon: FuelIcon },
   { to: "/new", label: "New job", icon: PlusCircleIcon },
   { to: "/insights", label: "Insights", icon: ChartIcon },
   { to: "/jobs", label: "Jobs", icon: ListIcon },
