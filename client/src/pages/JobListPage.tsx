@@ -38,6 +38,7 @@ import {
   CalendarIcon,
   CalendarDaysIcon,
   ClipboardIcon,
+  CopyIcon,
   WalletIcon,
   WrenchIcon,
   UserIcon,
@@ -91,7 +92,7 @@ function paidNote(job: Job): string | null {
   return methods.length ? methods.join(" + ") : null;
 }
 
-function jobSubtitle(job: Job, ticketNumber: string | null): string {
+function jobSubtitle(job: Job): string {
   const parts: string[] = [];
   if (job.status === "done") {
     parts.push(job.completedDate ? `Done ${shortDay(job.completedDate)}` : "Done");
@@ -101,7 +102,6 @@ function jobSubtitle(job: Job, ticketNumber: string | null): string {
   } else {
     parts.push("Not scheduled");
   }
-  if (ticketNumber) parts.push(`#${ticketNumber}`);
   return parts.join(" · ");
 }
 
@@ -169,6 +169,7 @@ export default function JobListPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [copiedNumberId, setCopiedNumberId] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -287,6 +288,12 @@ export default function JobListPage() {
     await navigator.clipboard.writeText(formatTicketText(job));
     setCopiedId(job.id!);
     setTimeout(() => setCopiedId(null), 1500);
+  }
+
+  async function handleCopyCardNumber(job: Job, ticketNumber: string) {
+    await navigator.clipboard.writeText(ticketNumber);
+    setCopiedNumberId(job.id!);
+    setTimeout(() => setCopiedNumberId((cur) => (cur === job.id ? null : cur)), 1500);
   }
 
   function openActions(job: Job) {
@@ -575,7 +582,25 @@ export default function JobListPage() {
                     </span>
                     <div className="job-card-title">
                       <h3>{customerName ?? "No name"}</h3>
-                      <span className="job-card-sub">{jobSubtitle(job, ticketNumber)}</span>
+                      <span className="job-card-sub">{jobSubtitle(job)}</span>
+                      {ticketNumber && (
+                        <button
+                          type="button"
+                          className={`job-number-btn${copiedNumberId === job.id ? " copied" : ""}`}
+                          aria-label={`Copy job number ${ticketNumber}`}
+                          onClick={() => handleCopyCardNumber(job, ticketNumber)}
+                        >
+                          {copiedNumberId === job.id ? (
+                            <>
+                              <CheckCircleIcon size={14} /> Copied
+                            </>
+                          ) : (
+                            <>
+                              <CopyIcon size={14} /> #{ticketNumber}
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                     <span className="job-card-total">{formatMoney(total)}</span>
                   </div>
