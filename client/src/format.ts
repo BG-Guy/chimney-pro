@@ -4,15 +4,22 @@ function trimTrailingZeros(s: string): string {
   return s.replace(/\.0+$/, "");
 }
 
+// "$1,850" for whole dollars, "$407.50" otherwise — thousands separated, never "$1850.00".
 export function formatMoney(n: number): string {
   const value = Number(n) || 0;
   const sign = Math.round(value * 100) < 0 ? "-" : "";
-  return `${sign}$${trimTrailingZeros(Math.abs(value).toFixed(2))}`;
+  const abs = Number(Math.abs(value).toFixed(2));
+  const whole = Number.isInteger(abs);
+  const text = abs.toLocaleString("en-US", {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2,
+  });
+  return `${sign}$${text}`;
 }
 
 export function formatCompactMoney(n: number): string {
   const value = Number(n) || 0;
-  const abs = Math.abs(value);
+  const abs = Math.round(Math.abs(value));
   if (abs >= 1_000_000) return `$${trimTrailingZeros((value / 1_000_000).toFixed(1))}M`;
   if (abs >= 1_000) return `$${trimTrailingZeros((value / 1_000).toFixed(1))}K`;
   return `$${Math.round(value)}`;

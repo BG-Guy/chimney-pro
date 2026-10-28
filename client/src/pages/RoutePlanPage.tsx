@@ -317,8 +317,11 @@ export default function RoutePlanPage() {
     setManualOrder(arrayMove(ids, ids.indexOf(Number(active.id)), ids.indexOf(Number(over.id))));
   }
 
+  // "October 28, 2026, 8:00 am" reads as "Oct 28 · 8:00 am"; a bare window like "11-2" stays as is.
   function timeLabel(stop: Stop): string {
-    return stop.time || "No time found";
+    if (!stop.time) return "No time found";
+    const m = stop.time.match(/^([A-Za-z]{3})[a-z]*\s+(\d{1,2}),?\s+\d{4}.*?(\d{1,2}:\d{2}\s*(?:am|pm))/i);
+    return m ? `${m[1]} ${m[2]} · ${m[3]}` : stop.time;
   }
 
   return (
@@ -379,9 +382,8 @@ export default function RoutePlanPage() {
                     href={buildGoogleMapsRouteUrl([stop.address])}
                     target="_blank"
                     rel="noreferrer"
-                    className="btn btn-sm"
-                  >
-                    <MapPinIcon size={16} /> Navigate to just this stop
+                    className="btn btn-sm btn-tinted">
+                      <MapPinIcon size={16} /> Navigate
                   </a>
                 )}
                 <button
@@ -507,25 +509,16 @@ export default function RoutePlanPage() {
                 <SortableRow key={stop.id} id={stop.id}>
                   {(handle) => (
                 <>
-                  {handle}
+                  <span className="stop-number">{i + 1}</span>
                   <div className="route-stop-body">
                   <button
                     type="button"
+                    className="stop-title"
                     onClick={() => setExpandedStopId(expanded ? null : stop.id)}
-                    style={{
-                      all: "unset",
-                      display: "block",
-                      cursor: "pointer",
-                      width: "100%",
-                    }}
                     aria-expanded={expanded}
                   >
-                    <div>
-                      <strong>
-                        {expanded ? "▾" : "▸"} {i + 1}. {stop.name}
-                      </strong>{" "}
-                      — <span className="empty-hint">{isUnscheduled ? "manually placed" : timeLabel(stop)}</span>
-                    </div>
+                    {stop.name}
+                    <span className="stop-time">{isUnscheduled ? "Placed by you" : timeLabel(stop)}</span>
                   </button>
                   <div className="empty-hint">{stop.address}</div>
                   {notFound && (
@@ -538,17 +531,7 @@ export default function RoutePlanPage() {
                     </p>
                   )}
                   {expanded && (
-                    <p
-                      className="empty-hint"
-                      style={{
-                        whiteSpace: "pre-wrap",
-                        background: "var(--surface-2)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 10,
-                        padding: 10,
-                        marginTop: 6,
-                      }}
-                    >
+                    <p className="ticket-preview">
                       {stop.rawText || "No ticket text saved for this stop."}
                     </p>
                   )}
@@ -557,9 +540,8 @@ export default function RoutePlanPage() {
                       href={buildGoogleMapsRouteUrl([pointById[stop.id] ?? stop.address])}
                       target="_blank"
                       rel="noreferrer"
-                      className="btn btn-sm"
-                    >
-                      <MapPinIcon size={16} /> Navigate to just this stop
+                      className="btn btn-sm btn-tinted">
+                      <MapPinIcon size={16} /> Navigate
                     </a>
                     <button
                       type="button"
@@ -579,6 +561,7 @@ export default function RoutePlanPage() {
                     )}
                   </div>
                   </div>
+                  {handle}
                 </>
                   )}
                 </SortableRow>
@@ -651,17 +634,7 @@ export default function RoutePlanPage() {
                   </button>
                   <div className="empty-hint">{stop.address}</div>
                   {expanded && (
-                    <p
-                      className="empty-hint"
-                      style={{
-                        whiteSpace: "pre-wrap",
-                        background: "var(--surface-2)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 10,
-                        padding: 10,
-                        marginTop: 6,
-                      }}
-                    >
+                    <p className="ticket-preview">
                       {stop.rawText || "No ticket text saved for this stop."}
                     </p>
                   )}
@@ -670,9 +643,8 @@ export default function RoutePlanPage() {
                       href={buildGoogleMapsRouteUrl([stop.address])}
                       target="_blank"
                       rel="noreferrer"
-                      className="btn btn-sm"
-                    >
-                      <MapPinIcon size={16} /> Navigate to just this stop
+                      className="btn btn-sm btn-tinted">
+                      <MapPinIcon size={16} /> Navigate
                     </a>
                     <button
                       type="button"

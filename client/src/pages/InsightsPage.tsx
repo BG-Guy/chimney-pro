@@ -163,13 +163,6 @@ function Meter({ label, pct, sub }: { label: string; pct: number; sub: string })
   );
 }
 
-const METHOD_SLOTS: Record<string, string> = {
-  CC: "var(--series-1)",
-  Check: "var(--series-2)",
-  Zelle: "var(--series-3)",
-  Cash: "var(--series-4)",
-  Other: "var(--series-5)",
-};
 
 function PaidMethods({ counts }: { counts: Insights["paidMethodCounts"] }) {
   const entries = Object.entries(counts) as [string, number][];
@@ -204,7 +197,7 @@ function PaidMethods({ counts }: { counts: Insights["paidMethodCounts"] }) {
                 <div className="method-bar-track">
                   <div
                     className="method-bar-fill"
-                    style={{ width: `${(count / total) * 100}%`, background: METHOD_SLOTS[method] ?? "var(--series-1)" }}
+                    style={{ width: `${(count / total) * 100}%` }}
                   />
                 </div>
                 <span className="method-bar-count">{count}</span>
@@ -426,7 +419,7 @@ export default function InsightsPage() {
           <Sparkline
             title="Revenue trend"
             caption="Last 6 weeks"
-            color="var(--series-1)"
+            color="var(--chart)"
             points={insights.weeklyTrend.map((p) => ({ label: p.label, value: p.revenue }))}
           />
 

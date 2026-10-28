@@ -3,7 +3,7 @@ import { PlusCircleIcon, ChartIcon, ListIcon, FuelIcon, MapPinIcon, SettingsIcon
 
 const TABS = [
   { to: "/gas", label: "Gas", icon: FuelIcon },
-  { to: "/new", label: "New Job", icon: PlusCircleIcon },
+  { to: "/new", label: "New job", icon: PlusCircleIcon },
   { to: "/insights", label: "Insights", icon: ChartIcon },
   { to: "/jobs", label: "Jobs", icon: ListIcon },
   { to: "/route", label: "Route", icon: MapPinIcon },
@@ -19,7 +19,7 @@ export default function BottomNav() {
           to={to}
           className={({ isActive }) => `bottom-nav-item${isActive ? " active" : ""}`}
         >
-          <Icon size={22} />
+          <Icon size={24} />
           <span>{label}</span>
         </NavLink>
       ))}

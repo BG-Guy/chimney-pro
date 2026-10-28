@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import {
-  DEPOSIT_METHOD_ICON,
-  LEAD_OUTCOME_ICON,
-  LEAD_OUTCOME_LABEL,
   STATUS_ICON,
   balanceRemaining,
   cashOwedToCompany,
   jobTotal,
   techProfit,
+  totalCardFee,
   totalPaid,
   type Job,
   type JobStatus,
@@ -23,6 +22,9 @@ import MonthWeekPicker from "../components/MonthWeekPicker";
 import JobsCalendarSheet from "../components/JobsCalendarSheet";
 import PaycheckCompareSheet from "../components/PaycheckCompareSheet";
 import JobTicketSheet from "../components/JobTicketSheet";
+import BottomSheet from "../components/BottomSheet";
+import HeaderActions from "../components/HeaderActions";
+import MenuSelect from "../components/MenuSelect";
 import { extractAddress } from "../address";
 import { navigationUrl } from "../navigation";
 import { readCompanyReportPdf } from "../companyReport";
@@ -33,22 +35,20 @@ import { addDays, fmtISO, inRange, startOfWeek } from "../dateUtils";
 import { downloadJobsCsv, totalCashInJobs } from "../jobsCsv";
 import { formatMoney } from "../format";
 import {
-  ArrowUpIcon,
-  HistoryIcon,
   CalendarIcon,
   CalendarDaysIcon,
-  DollarSignIcon,
   ClipboardIcon,
   WalletIcon,
   WrenchIcon,
   UserIcon,
-  ListIcon,
   AlertTriangleIcon,
   CheckCircleIcon,
   DownloadIcon,
-  CircleDotIcon,
+  DollarSignIcon,
   FileCheckIcon,
-  MapPinIcon,
+  MoreIcon,
+  NavigateIcon,
+  SearchIcon,
 } from "../components/icons";
 
 function isoToDate(iso: string): Date {
@@ -61,32 +61,70 @@ function formatDateRange(start: Date, end: Date): string {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
+// "Wed, Oct 28"
+function shortDay(iso: string): string {
+  return isoToDate(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
 function isOverdue(job: Job): boolean {
   if (job.status !== "awaiting" || !job.scheduledDate) return false;
   const today = new Date().toISOString().slice(0, 10);
   return job.scheduledDate < today;
 }
 
+function initials(name: string | null): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "#";
+  const letters = parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "");
+  return letters.toUpperCase();
+}
+
+const METHOD_NAME: Record<string, string> = { CC: "Card", Cash: "Cash", Check: "Check", Zelle: "Zelle", Other: "Other" };
+
+// The small line under "Paid": the card fee when there is one, otherwise how it was paid.
+function paidNote(job: Job): string | null {
+  const fee = totalCardFee(job);
+  if (fee > 0) return `incl. ${formatMoney(fee)} card fee`;
+  const methods = [
+    ...new Set(job.payments.filter((p) => Number(p.amount) > 0 && p.method).map((p) => METHOD_NAME[p.method] ?? p.method)),
+  ];
+  return methods.length ? methods.join(" + ") : null;
+}
+
+function jobSubtitle(job: Job, ticketNumber: string | null): string {
+  const parts: string[] = [];
+  if (job.status === "done") {
+    parts.push(job.completedDate ? `Done ${shortDay(job.completedDate)}` : "Done");
+  } else if (job.scheduledDate) {
+    parts.push(shortDay(job.scheduledDate));
+    if (job.scheduledTimeRange) parts.push(job.scheduledTimeRange);
+  } else {
+    parts.push("Not scheduled");
+  }
+  if (ticketNumber) parts.push(`#${ticketNumber}`);
+  return parts.join(" · ");
+}
+
 type SortMode = "newest" | "oldest" | "scheduled" | "total";
 
-const SORT_OPTIONS: Choice<SortMode>[] = [
-  { value: "newest", label: "Newest", icon: ArrowUpIcon },
-  { value: "oldest", label: "Oldest", icon: HistoryIcon },
-  { value: "scheduled", label: "Scheduled", icon: CalendarIcon },
-  { value: "total", label: "Total", icon: DollarSignIcon },
+const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "scheduled", label: "By job date" },
+  { value: "total", label: "Highest total" },
 ];
 
 type CrewFilter = "all" | "tech" | "repair";
 
-const CREW_FILTER_OPTIONS: Choice<CrewFilter>[] = [
-  { value: "all", label: "Everyone", icon: ListIcon },
-  { value: "tech", label: "Tech", icon: UserIcon },
-  { value: "repair", label: "Repair team", icon: WrenchIcon },
+const CREW_OPTIONS: { value: CrewFilter; label: string }[] = [
+  { value: "all", label: "Everyone" },
+  { value: "tech", label: "Tech" },
+  { value: "repair", label: "Repair team" },
 ];
 
 const STATUS_FILTER_OPTIONS: Choice<JobStatus | "all">[] = [
   { value: "all", label: "All", icon: ClipboardIcon },
-  { value: "awaiting", label: "Awaits", icon: STATUS_ICON.awaiting },
+  { value: "awaiting", label: "Awaiting", icon: STATUS_ICON.awaiting },
   { value: "done", label: "Done", icon: STATUS_ICON.done },
 ];
 
@@ -131,10 +169,12 @@ export default function JobListPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<number | null>(null);
-  const [copiedOriginalId, setCopiedOriginalId] = useState<number | null>(null);
-  const [copiedNumberId, setCopiedNumberId] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [ticketJob, setTicketJob] = useState<Job | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [actionsJob, setActionsJob] = useState<Job | null>(null);
   const [comparison, setComparison] = useState<PaycheckComparison | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const [compareFileName, setCompareFileName] = useState("");
@@ -160,6 +200,8 @@ export default function JobListPage() {
       .finally(() => setLoading(false));
     api.listTags().then(setTags);
   }, []);
+
+  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
   function toggleTagFilter(tagId: number) {
     setTagFilter((prev) => (prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]));
@@ -235,22 +277,33 @@ export default function JobListPage() {
     return { done, waitingForPayment, awaits, techProfitAwaiting, techJobsAwaiting, repairJobsAwaiting };
   }, [visibleJobs]);
 
+  function flash(message: string) {
+    setToast(message);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 1600);
+  }
+
   async function handleCopy(job: Job) {
     await navigator.clipboard.writeText(formatTicketText(job));
     setCopiedId(job.id!);
     setTimeout(() => setCopiedId(null), 1500);
   }
 
-  async function handleCopyOriginal(job: Job) {
-    await navigator.clipboard.writeText(job.rawTicketText);
-    setCopiedOriginalId(job.id!);
-    setTimeout(() => setCopiedOriginalId(null), 1500);
+  function openActions(job: Job) {
+    setActionsJob(job);
+    setActionsOpen(true);
   }
 
-  async function handleCopyNumber(job: Job, ticketNumber: string) {
+  async function handleCopyOriginal(job: Job) {
+    await navigator.clipboard.writeText(job.rawTicketText);
+    setActionsOpen(false);
+    flash("Original ticket copied");
+  }
+
+  async function handleCopyNumber(ticketNumber: string) {
     await navigator.clipboard.writeText(ticketNumber);
-    setCopiedNumberId(job.id!);
-    setTimeout(() => setCopiedNumberId(null), 1500);
+    setActionsOpen(false);
+    flash(`Copied #${ticketNumber}`);
   }
 
   async function handleComparePdf(file: File) {
@@ -275,8 +328,10 @@ export default function JobListPage() {
 
   async function handleDelete(job: Job) {
     if (!confirm(`Delete this job (#${job.id})?`)) return;
+    setActionsOpen(false);
     await api.deleteJob(job.id!);
     setJobs((prev) => prev.filter((j) => j.id !== job.id));
+    flash("Job deleted");
   }
 
   if (loading) return <p className="loading-text">Loading jobs...</p>;
@@ -292,8 +347,18 @@ export default function JobListPage() {
     );
   }
 
+  const openJobs = statusCounts.awaits + statusCounts.waitingForPayment;
+  const actionsNumber = actionsJob ? extractTicketNumber(actionsJob.rawTicketText) : null;
+  const viewport = document.querySelector(".phone-viewport");
+
   return (
     <div className="job-list">
+      <HeaderActions>
+        <button type="button" className="icon-button" aria-label="Open the jobs calendar" onClick={() => setCalendarOpen(true)}>
+          <CalendarDaysIcon size={24} />
+        </button>
+      </HeaderActions>
+
       <JobTicketSheet job={ticketJob} onClose={() => setTicketJob(null)} />
       <JobsCalendarSheet open={calendarOpen} jobs={jobs} onClose={() => setCalendarOpen(false)} />
       <PaycheckCompareSheet
@@ -302,86 +367,122 @@ export default function JobListPage() {
         comparison={comparison}
         fileName={compareFileName}
       />
+      <BottomSheet open={actionsOpen} onClose={() => setActionsOpen(false)} ariaLabel="Job actions">
+        {actionsJob && (
+          <>
+            <div className="action-list">
+              <div className="action-list-title">
+                {extractCustomerName(actionsJob.rawTicketText) ?? `Job ${actionsJob.id}`}
+              </div>
+              <button type="button" onClick={() => handleCopyOriginal(actionsJob)}>
+                Copy original ticket
+              </button>
+              {actionsNumber && (
+                <button type="button" onClick={() => handleCopyNumber(actionsNumber)}>
+                  Copy job number #{actionsNumber}
+                </button>
+              )}
+              <button type="button" className="danger" onClick={() => handleDelete(actionsJob)}>
+                Delete job
+              </button>
+            </div>
+            <div className="action-list">
+              <button type="button" style={{ fontWeight: 600 }} onClick={() => setActionsOpen(false)}>
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </BottomSheet>
+      {toast &&
+        viewport &&
+        createPortal(
+          <div className="toast" role="status">
+            {toast}
+          </div>,
+          viewport
+        )}
 
-      <div style={{ display: "flex", gap: 8 }}>
+      <label className="search-field">
+        <SearchIcon size={17} />
         <input
           type="search"
-          className="job-search-input"
-          style={{ flex: 1, minWidth: 0 }}
-          placeholder="Search by customer or job #"
+          placeholder="Search customer or job #"
+          aria-label="Search by customer or job number"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
-        <button type="button" className="btn" onClick={() => setCalendarOpen(true)}>
-          <CalendarDaysIcon size={18} /> Calendar
-        </button>
-      </div>
+      </label>
 
       <div className="jobs-toolbar">
-        <ChoiceBoxes options={SORT_OPTIONS} value={sortMode} onChange={setSortMode} />
         <ChoiceBoxes options={STATUS_FILTER_OPTIONS} value={statusFilter} onChange={setStatusFilter} />
-        <ChoiceBoxes options={CREW_FILTER_OPTIONS} value={crewFilter} onChange={setCrewFilter} />
+        <div className="filter-pills">
+          <MenuSelect label="Who does the job" value={crewFilter} options={CREW_OPTIONS} onChange={setCrewFilter} />
+          <MenuSelect label="Sort jobs" value={sortMode} options={SORT_OPTIONS} onChange={setSortMode} />
+          <button
+            type="button"
+            className={`chip-pill${paycheckFilterOn ? " selected" : ""}`}
+            aria-pressed={paycheckFilterOn}
+            onClick={() => setPaycheckFilterOn((prev) => !prev)}
+          >
+            <WalletIcon size={16} /> Paycheck report
+          </button>
+        </div>
+        {tags.length > 0 && (
+          <div className="tag-color-picker">
+            {tags.map((tag) => {
+              const selected = tagFilter.includes(tag.id!);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className={`tag-chip tag-chip-toggle${selected ? " selected" : ""}`}
+                  style={{ background: `var(--${tag.color})` }}
+                  aria-pressed={selected}
+                  onClick={() => toggleTagFilter(tag.id!)}
+                >
+                  {tag.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {tags.length > 0 && (
-        <div className="tag-color-picker">
-          {tags.map((tag) => {
-            const selected = tagFilter.includes(tag.id!);
-            return (
-              <button
-                key={tag.id}
-                type="button"
-                className={`tag-chip tag-chip-toggle${selected ? " selected" : ""}`}
-                style={{ background: `var(--${tag.color})` }}
-                onClick={() => toggleTagFilter(tag.id!)}
-              >
-                {tag.name}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="paycheck-filter">
-        <button
-          type="button"
-          className={`chip-pill${paycheckFilterOn ? " selected" : ""}`}
-          onClick={() => setPaycheckFilterOn((prev) => !prev)}
-        >
-          <WalletIcon size={16} /> Paycheck report
-        </button>
-
-        {paycheckFilterOn && (
-          <>
-            <ChoiceBoxes options={PAYCHECK_MODE_OPTIONS} value={paycheckMode} onChange={setPaycheckMode} />
-            {paycheckMode === "range" && (
-              <div className="paycheck-date-range">
-                <label>
-                  From
-                  <DateButton value={paycheckRangeStart} onChange={(v) => setPaycheckRangeStart(v || paycheckRangeStart)} />
-                </label>
-                <label>
-                  To
-                  <DateButton value={paycheckRangeEnd} onChange={(v) => setPaycheckRangeEnd(v || paycheckRangeEnd)} />
-                </label>
-              </div>
-            )}
-            {paycheckMode === "month" && (
-              <MonthWeekPicker months={paycheckMonths} selectedMonth={paycheckMonth} onSelectMonth={setPaycheckMonth} />
-            )}
-            {paycheckMode === "range" && (
-              <p className="empty-hint">
-                Jobs marked done {formatDateRange(isoToDate(paycheckRange.startISO), isoToDate(paycheckRange.endISO))} —
-                that's the paycheck this covers
-              </p>
-            )}
-            {paycheckMode === "month" && (
-              <p className="empty-hint">Jobs marked done during {paycheckMonth.label} — that's the paycheck this covers</p>
-            )}
-            <p className="subtotal">Cash collected: {formatMoney(totalCashInJobs(visibleJobs))}</p>
+      {paycheckFilterOn && (
+        <section className="paycheck-panel" aria-label="Paycheck report">
+          <div className="paycheck-panel-head">
+            <h2>Paycheck report</h2>
+            <button type="button" className="btn btn-plain btn-sm" onClick={() => setPaycheckFilterOn(false)}>
+              Done
+            </button>
+          </div>
+          <ChoiceBoxes options={PAYCHECK_MODE_OPTIONS} value={paycheckMode} onChange={setPaycheckMode} />
+          {paycheckMode === "range" && (
+            <div className="paycheck-date-range">
+              <label>
+                From
+                <DateButton value={paycheckRangeStart} onChange={(v) => setPaycheckRangeStart(v || paycheckRangeStart)} />
+              </label>
+              <label>
+                To
+                <DateButton value={paycheckRangeEnd} onChange={(v) => setPaycheckRangeEnd(v || paycheckRangeEnd)} />
+              </label>
+            </div>
+          )}
+          {paycheckMode === "month" && (
+            <MonthWeekPicker months={paycheckMonths} selectedMonth={paycheckMonth} onSelectMonth={setPaycheckMonth} />
+          )}
+          <p className="empty-hint">
+            {paycheckMode === "range"
+              ? `Jobs marked done ${formatDateRange(isoToDate(paycheckRange.startISO), isoToDate(paycheckRange.endISO))} — that's the paycheck this covers.`
+              : `Jobs marked done during ${paycheckMonth.label} — that's the paycheck this covers.`}
+          </p>
+          <p className="subtotal">Cash collected: {formatMoney(totalCashInJobs(visibleJobs))}</p>
+          <div className="paycheck-actions">
             <button
               type="button"
-              className="btn"
+              className="btn btn-tinted"
               onClick={() =>
                 downloadJobsCsv(
                   visibleJobs,
@@ -391,15 +492,15 @@ export default function JobListPage() {
                 )
               }
             >
-              <DownloadIcon size={16} /> Export paycheck report
+              <DownloadIcon size={17} /> Export paycheck report
             </button>
             <button
               type="button"
-              className="btn"
+              className="btn btn-tinted"
               disabled={comparing}
               onClick={() => pdfInputRef.current?.click()}
             >
-              <FileCheckIcon size={16} /> {comparing ? "Reading PDF..." : "Compare with company report (PDF)"}
+              <FileCheckIcon size={17} /> {comparing ? "Reading PDF..." : "Compare with company report (PDF)"}
             </button>
             <input
               ref={pdfInputRef}
@@ -412,183 +513,153 @@ export default function JobListPage() {
                 if (file) handleComparePdf(file);
               }}
             />
-          </>
-        )}
-      </div>
-
-      <div className="awaiting-summary">
-        <div className="awaiting-summary-profit">
-          <span className="awaiting-summary-label">Tech profit awaiting</span>
-          <span className="awaiting-summary-value">{formatMoney(statusCounts.techProfitAwaiting)}</span>
-        </div>
-        <div className="awaiting-summary-split">
-          <div className="awaiting-summary-count">
-            <span className="awaiting-summary-label">
-              <span className="calendar-dot tech" /> Tech jobs awaiting
-            </span>
-            <span className="awaiting-summary-number">{statusCounts.techJobsAwaiting}</span>
           </div>
-          <div className="awaiting-summary-count">
-            <span className="awaiting-summary-label">
-              <span className="calendar-dot repair" /> Repair team awaiting
-            </span>
-            <span className="awaiting-summary-number">{statusCounts.repairJobsAwaiting}</span>
+        </section>
+      )}
+
+      <section className="summary-card" aria-label="Money waiting on open jobs">
+        <span className="summary-label">Tech profit awaiting</span>
+        <span className="summary-value">{formatMoney(statusCounts.techProfitAwaiting)}</span>
+        <span className="summary-sub">
+          From {openJobs} open job{openJobs === 1 ? "" : "s"} · {statusCounts.techJobsAwaiting} tech,{" "}
+          {statusCounts.repairJobsAwaiting} repair team
+        </span>
+        <div className="summary-counts">
+          <div>
+            <span className="summary-count">{statusCounts.awaits}</span>
+            <span className="summary-count-label">Awaiting</span>
+          </div>
+          <div>
+            <span className="summary-count">{statusCounts.done}</span>
+            <span className="summary-count-label">Done</span>
+          </div>
+          <div>
+            <span className="summary-count">{statusCounts.waitingForPayment}</span>
+            <span className="summary-count-label">Waiting for payment</span>
           </div>
         </div>
-      </div>
-
-      <div className="job-status-summary">
-        <strong>{statusCounts.awaits} Jobs awaits</strong>
-        <strong>{statusCounts.done} Jobs done</strong>
-        <strong>{statusCounts.waitingForPayment} Jobs waiting for payment</strong>
-      </div>
+      </section>
 
       {visibleJobs.length === 0 ? (
         <div className="empty-state">
           <p>No jobs match these filters.</p>
         </div>
       ) : (
-        <div className="job-cards">
-          {visibleJobs.map((job) => {
-            const overdue = isOverdue(job);
-            const outcome = job.leadOutcome;
-            const OutcomeIcon = LEAD_OUTCOME_ICON[outcome] ?? CircleDotIcon;
-            const ticketNumber = extractTicketNumber(job.rawTicketText);
-            const customerName = extractCustomerName(job.rawTicketText);
-            const address = extractAddress(job.rawTicketText);
-            return (
-              <div
-                className="job-card job-card-tappable"
-                key={job.id}
-                onClick={(e) => {
-                  // Buttons and links on the card do their own thing; a tap anywhere else opens the ticket.
-                  if ((e.target as HTMLElement).closest("button, a")) return;
-                  setTicketJob(job);
-                }}
-              >
-                {customerName && <p className="job-card-customer">{customerName}</p>}
-                <div className="job-card-top">
-                  <div className="job-card-top-left">
-                    <span className={`status-tag ${job.status}${overdue ? " overdue" : ""}`}>
-                      {job.status === "done" ? (
-                        <>
-                          <CheckCircleIcon size={13} /> Job done
-                        </>
-                      ) : overdue ? (
-                        <>
-                          <AlertTriangleIcon size={13} /> Overdue
-                        </>
-                      ) : (
-                        <>
-                          <STATUS_ICON.awaiting size={13} /> Job awaits
-                        </>
-                      )}
+        <>
+          <h2 className="section-title">
+            {visibleJobs.length} job{visibleJobs.length === 1 ? "" : "s"}
+          </h2>
+          <div className="job-cards">
+            {visibleJobs.map((job) => {
+              const overdue = isOverdue(job);
+              const ticketNumber = extractTicketNumber(job.rawTicketText);
+              const customerName = extractCustomerName(job.rawTicketText);
+              const address = extractAddress(job.rawTicketText);
+              const total = jobTotal(job);
+              const paid = totalPaid(job);
+              const note = paidNote(job);
+              const tone = job.status === "done" ? "done" : job.needsRepairTeam ? "repair" : "";
+              return (
+                <article
+                  className="job-card job-card-tappable"
+                  key={job.id}
+                  onClick={(e) => {
+                    // Buttons and links on the card do their own thing; a tap anywhere else opens the ticket.
+                    if ((e.target as HTMLElement).closest("button, a")) return;
+                    setTicketJob(job);
+                  }}
+                >
+                  <div className="job-card-head">
+                    <span className={`avatar ${tone}`} aria-hidden="true">
+                      {initials(customerName)}
                     </span>
-                    {ticketNumber && (
-                      <button type="button" className="job-number-chip" onClick={() => handleCopyNumber(job, ticketNumber)}>
-                        {copiedNumberId === job.id ? "Copied!" : `#${ticketNumber}`}
-                      </button>
+                    <div className="job-card-title">
+                      <h3>{customerName ?? "No name"}</h3>
+                      <span className="job-card-sub">{jobSubtitle(job, ticketNumber)}</span>
+                    </div>
+                    <span className="job-card-total">{formatMoney(total)}</span>
+                  </div>
+
+                  <div className="badge-row">
+                    {job.status === "done" ? (
+                      <span className="badge good">
+                        <CheckCircleIcon size={13} /> {total > 0 ? "Ready for payout" : "Done"}
+                      </span>
+                    ) : overdue ? (
+                      <span className="badge danger">
+                        <AlertTriangleIcon size={13} /> Overdue
+                      </span>
+                    ) : (
+                      <span className="badge warn">
+                        <STATUS_ICON.awaiting size={13} /> Awaiting
+                      </span>
                     )}
-                    {outcome === "deposit" && (
-                      <span className="deposit-badge">
-                        <WalletIcon size={13} /> Got Deposit
+                    {job.status !== "done" && job.leadOutcome === "deposit" && (
+                      <span className="badge accent">
+                        <WalletIcon size={13} /> Got deposit
                       </span>
                     )}
                     {job.needsRepairTeam ? (
-                      <span className="repair-badge">
-                        <WrenchIcon size={13} /> Repair Team
+                      <span className="badge repair">
+                        <WrenchIcon size={13} /> Repair team
                       </span>
                     ) : (
-                      <span className="tech-badge">
+                      <span className="badge">
                         <UserIcon size={13} /> Tech
                       </span>
                     )}
-                    {jobTotal(job) > 0 && balanceRemaining(job) <= 0 && (
-                      <span className="paid-off-badge">
-                        <CheckCircleIcon size={13} /> Ready for payout
-                      </span>
+                  </div>
+
+                  <dl className="money-row">
+                    <div>
+                      <dt>Paid</dt>
+                      <dd>
+                        {paid ? formatMoney(paid) : "—"}
+                        {note && <span className="money-sub">{note}</span>}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Balance</dt>
+                      <dd>{formatMoney(balanceRemaining(job))}</dd>
+                    </div>
+                    <div>
+                      <dt>Tech profit</dt>
+                      <dd>{formatMoney(techProfit(job))}</dd>
+                    </div>
+                  </dl>
+
+                  {cashOwedToCompany(job) > 0 && (
+                    <p className="callout">
+                      <DollarSignIcon size={16} /> Tech collected cash — owes company{" "}
+                      {formatMoney(cashOwedToCompany(job))}
+                    </p>
+                  )}
+
+                  <div className="job-card-actions">
+                    {address ? (
+                      <a className="btn btn-primary" href={navigationUrl(address)} target="_blank" rel="noreferrer">
+                        <NavigateIcon size={16} /> Navigate
+                      </a>
+                    ) : (
+                      <button type="button" className="btn" disabled>
+                        No address
+                      </button>
                     )}
+                    <button type="button" className="btn btn-tinted" onClick={() => handleCopy(job)}>
+                      {copiedId === job.id ? "Copied!" : "Copy"}
+                    </button>
+                    <Link to={`/jobs/${job.id}/edit`} className="btn">
+                      Edit
+                    </Link>
+                    <button type="button" className="btn btn-icon" aria-label="More actions" onClick={() => openActions(job)}>
+                      <MoreIcon size={20} />
+                    </button>
                   </div>
-                  <span className="job-card-total">{formatMoney(jobTotal(job))}</span>
-                </div>
-
-                <dl className="job-card-details">
-                  <div>
-                    <dt>{job.status === "done" ? "Completed" : "Scheduled"}</dt>
-                    <dd>
-                      {job.status === "done"
-                        ? job.completedDate || "—"
-                        : job.scheduledDate
-                          ? `${job.scheduledDate}${job.scheduledTimeRange ? ` · ${job.scheduledTimeRange}` : ""}`
-                          : "TBD"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Paid</dt>
-                    <dd style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-                      {totalPaid(job) ? formatMoney(totalPaid(job)) : "—"}
-                      {job.payments
-                        .filter((p) => p.amount && p.method)
-                        .map((p, i) => {
-                          const MethodIcon =
-                            DEPOSIT_METHOD_ICON[p.method as Exclude<typeof p.method, "">] ?? CircleDotIcon;
-                          return <MethodIcon key={i} size={13} />;
-                        })}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Repair team</dt>
-                    <dd>{job.needsRepairTeam ? "Yes" : "No"}</dd>
-                  </div>
-                  <div>
-                    <dt>Tech profit</dt>
-                    <dd>{formatMoney(techProfit(job))}</dd>
-                  </div>
-                  <div>
-                    <dt>Balance remaining</dt>
-                    <dd>{formatMoney(balanceRemaining(job))}</dd>
-                  </div>
-                  <div>
-                    <dt>Outcome</dt>
-                    <dd style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <OutcomeIcon size={13} />
-                      {LEAD_OUTCOME_LABEL[outcome]}
-                    </dd>
-                  </div>
-                </dl>
-
-                {cashOwedToCompany(job) > 0 && (
-                  <p className="cash-owed-callout">
-                    Tech collected cash — owes company {formatMoney(cashOwedToCompany(job))}
-                  </p>
-                )}
-
-                {address ? (
-                  <a className="btn btn-primary btn-block" href={navigationUrl(address)} target="_blank" rel="noreferrer">
-                    <MapPinIcon size={16} /> Navigate
-                  </a>
-                ) : (
-                  <p className="empty-hint">No address found in the ticket</p>
-                )}
-
-                <div className="job-card-actions">
-                  <Link to={`/jobs/${job.id}/edit`} className="btn">
-                    Edit
-                  </Link>
-                  <button className="btn" onClick={() => handleCopy(job)}>
-                    {copiedId === job.id ? "Copied!" : "Copy ticket"}
-                  </button>
-                  <button className="btn" onClick={() => handleCopyOriginal(job)}>
-                    {copiedOriginalId === job.id ? "Copied!" : "Copy original"}
-                  </button>
-                  <button className="btn btn-danger" onClick={() => handleDelete(job)}>
-                    Delete
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                </article>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

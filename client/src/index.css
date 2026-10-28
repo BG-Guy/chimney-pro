@@ -1,17 +1,64 @@
+/* Ledger — the app's design tokens. Light is iOS's grouped look (gray page, white cards);
+   dark is its counterpart. Older token names (--surface-*, --series-*, --good-*, …) are kept
+   as aliases so every existing rule picks up the new palette. */
 :root {
   color-scheme: light dark;
-  font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: 16px/1.4 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
 
-  --surface-page: #f0efec;
-  --surface-1: #fcfcfb;
-  --surface-2: #ffffff;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
-  --border: #e1e0d9;
-  --border-strong: #c3c2b7;
+  --bg: #f2f2f7;
+  --card: #ffffff;
+  --fill: #e3e3e8;
+  --fill-2: #efeff4;
+  --text: #0b0b0f;
+  --text-2: #3c3c43;
+  --text-3: #6e6e76;
+  --text-on-fill: #5e5e66;
+  --sep: #e5e5ea;
+  --sep-strong: #c7c7cc;
 
-  --series-1: #2a78d6;
+  --accent: #1f5eff;
+  --accent-text: #1f5eff;
+  --on-accent: #ffffff;
+  --accent-soft: #e8eeff;
+  --accent-soft-text: #1546c7;
+  --chart: #1f5eff;
+
+  --good-text: #0e6e3e;
+  --good-soft: #e3f5ea;
+  --warn-text: #9a5b00;
+  --warn-soft: #fff2d9;
+  --danger: #c8231b;
+  --danger-soft: #ffe8e6;
+  --repair-text: #6b3fd4;
+  --repair-soft: #f0ebff;
+
+  --nav-bg: rgba(249, 249, 251, 0.88);
+  --nav-sep: #d8d8de;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18);
+  --nav-h: calc(58px + env(safe-area-inset-bottom));
+
+  /* Older names, mapped onto the Ledger palette */
+  --surface-page: #e5e5ea;
+  --surface-1: var(--bg);
+  --surface-2: var(--card);
+  --text-primary: var(--text);
+  --text-secondary: var(--text-2);
+  --text-muted: var(--text-3);
+  --border: var(--sep);
+  --border-strong: var(--sep-strong);
+  --good: #1f9d55;
+  --good-bg: var(--good-soft);
+  --warning: #e08a00;
+  --warning-bg: var(--warn-soft);
+  --critical: var(--danger);
+  --critical-bg: var(--danger-soft);
+  --accent-bg: var(--accent-soft);
+
+  /* Tag colors (stored by name on each tag) */
+  --series-1: #1f5eff;
   --series-2: #eb6834;
   --series-3: #1baf7a;
   --series-4: #eda100;
@@ -19,30 +66,47 @@
   --series-6: #4caf3f;
   --series-7: #8b6fd6;
   --series-8: #d0393f;
-
-  --good: #0ca30c;
-  --good-text: #006300;
-  --good-bg: rgba(12, 163, 12, 0.12);
-  --warning: #fab219;
-  --warning-bg: rgba(250, 178, 25, 0.16);
-  --critical: #d03b3b;
-  --critical-bg: rgba(208, 59, 59, 0.12);
-
-  --accent-bg: rgba(42, 120, 214, 0.1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface-page: #000000;
-    --surface-1: #1a1a19;
-    --surface-2: #202020;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
-    --border: #2c2c2a;
-    --border-strong: #383835;
+    --bg: #000000;
+    --card: #1c1c1e;
+    --fill: #2c2c2e;
+    --fill-2: #2c2c2e;
+    --text: #ffffff;
+    --text-2: #d1d1d6;
+    --text-3: #98989f;
+    --text-on-fill: #98989f;
+    --sep: #38383a;
+    --sep-strong: #48484a;
 
-    --series-1: #3987e5;
+    --accent: #1f5eff;
+    --accent-text: #7da6ff;
+    --on-accent: #ffffff;
+    --accent-soft: #182544;
+    --accent-soft-text: #9dbbff;
+    --chart: #4d85ff;
+
+    --good-text: #4cd787;
+    --good-soft: #10301f;
+    --warn-text: #ffc255;
+    --warn-soft: #3a2a08;
+    --danger: #ff8a80;
+    --danger-soft: #3b1513;
+    --repair-text: #b79cff;
+    --repair-soft: #2a1f4a;
+
+    --nav-bg: rgba(22, 22, 24, 0.88);
+    --nav-sep: #2c2c2e;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+
+    --surface-page: #0b0b0c;
+    --good: #30c46c;
+    --warning: #ffb02e;
+
+    --series-1: #4d85ff;
     --series-2: #d95926;
     --series-3: #199e70;
     --series-4: #c98500;
@@ -50,16 +114,6 @@
     --series-6: #5cbf4d;
     --series-7: #9d84e0;
     --series-8: #e05056;
-
-    --good: #0ca30c;
-    --good-text: #0ca30c;
-    --good-bg: rgba(12, 163, 12, 0.18);
-    --warning: #fab219;
-    --warning-bg: rgba(250, 178, 25, 0.16);
-    --critical: #e66767;
-    --critical-bg: rgba(230, 103, 103, 0.16);
-
-    --accent-bg: rgba(57, 135, 229, 0.16);
   }
 }
 
@@ -70,10 +124,17 @@
 body {
   margin: 0;
   background: var(--surface-page);
-  color: var(--text-primary);
+  color: var(--text);
 }
 
-h1, h2, h3 {
+h1, h2, h3, h4 {
   font-weight: 600;
   margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }

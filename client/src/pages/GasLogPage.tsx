@@ -4,6 +4,17 @@ import type { GasLog } from "../types";
 import { todayISO } from "../dateUtils";
 import { formatMoney } from "../format";
 
+// "2026-10-27" -> "Tue, Oct 27, 2026"
+function longDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function GasLogPage() {
   const [logs, setLogs] = useState<GasLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,9 +82,9 @@ export default function GasLogPage() {
         <div className="gas-rows">
           {logs.map((log) => (
             <div className="gas-row" key={log.id}>
-              <span className="gas-row-date">{log.date}</span>
+              <span className="gas-row-date">{longDate(log.date)}</span>
               <span className="gas-row-amount">{formatMoney(log.amount)}</span>
-              <button className="btn btn-danger" onClick={() => handleDelete(log.id!)}>
+              <button className="btn btn-sm btn-danger" onClick={() => handleDelete(log.id!)}>
                 Delete
               </button>
             </div>

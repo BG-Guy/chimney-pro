@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import {
@@ -24,8 +25,13 @@ import {
 } from "../types";
 import ChoiceBoxes, { type Choice } from "../components/ChoiceBoxes";
 import DateButton from "../components/DateButton";
+import Switch from "../components/Switch";
 import { todayISO } from "../dateUtils";
 import { formatMoney } from "../format";
+import { extractCustomerName } from "../customerName";
+import { extractTicketNumber } from "../ticketNumber";
+import { extractAddress } from "../address";
+import { extractScheduledTime } from "../scheduledTime";
 import {
   ClipboardIcon,
   CloseIcon,
@@ -34,6 +40,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   TagIcon,
+  PlusIcon,
 } from "../components/icons";
 
 const HOUR_RANGE_PRESETS = ["8-11", "9-12", "10-1", "11-2", "12-3", "1-4", "2-5"];
@@ -47,7 +54,7 @@ function formatPartDate(iso: string): string {
 
 const PAID_METHOD_OPTIONS: Choice<DepositMethod>[] = DEPOSIT_METHODS.map((m) => ({
   value: m,
-  label: m,
+  label: m === "CC" ? "Card" : m,
   icon: DEPOSIT_METHOD_ICON[m as Exclude<DepositMethod, "">],
 }));
 
@@ -61,6 +68,9 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
   const [partName, setPartName] = useState("");
   const [partPrice, setPartPrice] = useState("");
   const canAddPart = partName.trim() !== "" && Number(partPrice) > 0;
+  // The phone frame the save bar is pinned into — looked up once the page is on screen.
+  const [viewport, setViewport] = useState<Element | null>(null);
+  useEffect(() => setViewport(document.querySelector(".phone-viewport")), []);
 
   useEffect(() => {
     if (mode === "edit" && id) {
@@ -209,292 +219,368 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
 
   const isDeposit = paidTowardJob(job) > 0 && paidTowardJob(job) < jobTotal(job);
   const isDone = balanceRemaining(job) <= 0;
+  const raw = job.rawTicketText;
+  // What the app could read out of the pasted ticket — the same details the Jobs list and
+  // Route tab use, shown here so a bad paste is caught before saving.
+  const found = raw.trim()
+    ? [
+        { label: "Customer", value: extractCustomerName(raw) },
+        { label: "Job number", value: extractTicketNumber(raw) },
+        { label: "Address", value: extractAddress(raw) },
+        { label: "Appointment", value: extractScheduledTime(raw) },
+      ].filter((f): f is { label: string; value: string } => !!f.value)
+    : [];
 
   return (
-    <form className="job-form" onSubmit={handleSubmit}>
+    <form id="job-form" className="job-form has-save-bar" onSubmit={handleSubmit}>
       {mode === "edit" && <p className="form-subtitle">Job #{id}</p>}
 
-      <label>
-        Paste job ticket
-        <textarea
-          rows={5}
-          value={job.rawTicketText}
-          onChange={(e) => updateField("rawTicketText", e.target.value)}
-          placeholder="Paste the raw job ticket text here..."
-        />
-      </label>
-      <button type="button" className="btn btn-sm" onClick={handlePasteTicket}>
-        <ClipboardIcon size={16} /> Paste from clipboard
-      </button>
+      <section className="group">
+        <h2 className="group-title">Ticket</h2>
+        <div className="group-card">
+          <textarea
+            className="ticket-input"
+            rows={5}
+            aria-label="Job ticket"
+            value={job.rawTicketText}
+            onChange={(e) => updateField("rawTicketText", e.target.value)}
+            placeholder="Paste the job ticket here..."
+          />
+          <button type="button" className="row-button" onClick={handlePasteTicket}>
+            <ClipboardIcon size={19} /> Paste from clipboard
+          </button>
+          {found.map((f) => (
+            <div className="row" key={f.label}>
+              <span className="row-label">{f.label}</span>
+              <span className="row-value">{f.value}</span>
+            </div>
+          ))}
+          <div className="row">
+            <span className="row-label">Date logged</span>
+            <DateButton value={job.loggedDate} onChange={(v) => updateField("loggedDate", v || todayISO())} />
+          </div>
+        </div>
+      </section>
 
-      <label>
-        Date logged
-        <DateButton
-          value={job.loggedDate}
-          onChange={(v) => updateField("loggedDate", v || todayISO())}
-        />
-      </label>
-
-      <fieldset>
-        <legend>Items</legend>
-        {job.items.map((item, index) => (
-          <div className="item-row" key={index}>
-            <input
-              type="text"
-              placeholder="Item description"
-              value={item.description}
-              onChange={(e) => updateItem(index, "description", e.target.value)}
-            />
-            <div className="item-row-line2">
-              <div className="qty-stepper">
-                <button type="button" onClick={() => updateItemQuantity(index, -1)} aria-label="Decrease quantity">
-                  −
-                </button>
-                <span>{item.quantity || 1}</span>
-                <button type="button" onClick={() => updateItemQuantity(index, 1)} aria-label="Increase quantity">
-                  +
+      <section className="group">
+        <h2 className="group-title">Items</h2>
+        <div className="group-card">
+          {job.items.map((item, index) => (
+            <div className="item-row" key={index}>
+              <input
+                type="text"
+                placeholder="Item description"
+                aria-label={`Item ${index + 1} description`}
+                value={item.description}
+                onChange={(e) => updateItem(index, "description", e.target.value)}
+              />
+              <div className="item-row-line2">
+                <div className="qty-stepper">
+                  <button type="button" onClick={() => updateItemQuantity(index, -1)} aria-label="Decrease quantity">
+                    −
+                  </button>
+                  <span>{item.quantity || 1}</span>
+                  <button type="button" onClick={() => updateItemQuantity(index, 1)} aria-label="Increase quantity">
+                    +
+                  </button>
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  className="price-input"
+                  placeholder="Price each"
+                  aria-label={`Item ${index + 1} price each`}
+                  value={item.cost || ""}
+                  onChange={(e) => updateItem(index, "cost", e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="icon-button muted danger"
+                  aria-label={`Remove item ${index + 1}`}
+                  onClick={() => removeItem(index)}
+                >
+                  <CloseIcon size={16} />
                 </button>
               </div>
-              <input
-                type="number"
-                step="0.01"
-                inputMode="decimal"
-                placeholder="Cost each"
-                value={item.cost || ""}
-                onChange={(e) => updateItem(index, "cost", e.target.value)}
-              />
-              <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItem(index)}>
-                Remove
-              </button>
+              {(item.quantity || 1) > 1 && item.cost > 0 && (
+                <p className="item-line-total">= {formatMoney(item.cost * (item.quantity || 1))}</p>
+              )}
             </div>
-            {(item.quantity || 1) > 1 && item.cost > 0 && (
-              <p className="item-line-total">= {formatMoney(item.cost * (item.quantity || 1))}</p>
-            )}
-          </div>
-        ))}
-        <button type="button" className="btn" onClick={addItem}>
-          + Add item
-        </button>
-        <p className="subtotal">Items subtotal: {formatMoney(itemsTotal(job))}</p>
-      </fieldset>
+          ))}
+          <button type="button" className="row-button" onClick={addItem}>
+            <PlusIcon size={19} /> Add item
+          </button>
+        </div>
+        <p className="group-footer">
+          Items subtotal <strong>{formatMoney(itemsTotal(job))}</strong>
+        </p>
+      </section>
 
-      <fieldset>
-        <legend>Payments</legend>
+      <section className="group">
+        <h2 className="group-title">Payments</h2>
         {job.payments.map((payment, index) => (
-          <div className="payment-row" key={index}>
-            <div className="paid-amount-row">
+          <div className="group-card" key={index}>
+            <label className="row">
+              <span className="row-label">Amount</span>
               <input
                 type="number"
                 step="0.01"
                 inputMode="decimal"
+                className="row-input"
                 placeholder="0.00"
                 value={payment.amount || ""}
                 onChange={(e) => updatePayment(index, "amount", e.target.value)}
               />
-              <button type="button" className="btn" onClick={() => fillAllOfBalance(index)}>
-                All of balance
-              </button>
+            </label>
+            <div className="row row-stack">
+              <span className="row-label">Paid with</span>
+              <ChoiceBoxes
+                options={PAID_METHOD_OPTIONS}
+                value={payment.method}
+                onChange={(v) => updatePayment(index, "method", v)}
+                allowDeselect
+                deselectValue=""
+              />
             </div>
-            <ChoiceBoxes
-              options={PAID_METHOD_OPTIONS}
-              value={payment.method}
-              onChange={(v) => updatePayment(index, "method", v)}
-              allowDeselect
-              deselectValue=""
-            />
-            <DateButton
-              value={payment.date}
-              onChange={(v) => updatePaymentDate(index, v)}
-              placeholder="Date paid (defaults to today)"
-            />
+            <div className="row">
+              <span className="row-label">Date paid</span>
+              <DateButton value={payment.date} onChange={(v) => updatePaymentDate(index, v)} placeholder="Today" />
+            </div>
             {paymentCardFee(payment) > 0 && (
-              <p className="cash-owed-callout">
-                Paid {formatMoney(payment.amount + paymentCardFee(payment))} by card — includes{" "}
+              <p className="row-note">
+                Card charged <strong>{formatMoney(payment.amount + paymentCardFee(payment))}</strong> — includes a{" "}
                 {formatMoney(paymentCardFee(payment))} card fee (3%). {formatMoney(payment.amount)} goes toward the job.
               </p>
             )}
-            <button type="button" className="btn btn-danger" onClick={() => removePayment(index)}>
+            <button type="button" className="row-button" onClick={() => fillAllOfBalance(index)}>
+              Pay the rest of the balance
+            </button>
+            <button type="button" className="row-button danger" onClick={() => removePayment(index)}>
               Remove payment
             </button>
           </div>
         ))}
-        <button type="button" className="btn" onClick={addPayment}>
-          + Add payment
-        </button>
-        <p className="subtotal">Total paid: {formatMoney(totalPaid(job))}</p>
-        {totalCardFee(job) > 0 && (
-          <p className="form-hint">
-            Includes {formatMoney(totalCardFee(job))} card fee — {formatMoney(paidTowardJob(job))} goes toward the job.
-          </p>
-        )}
-      </fieldset>
-
-      {(isDeposit || job.needsRepairTeam) && (
-        <div className="ticket-tags-preview">
-          {isDeposit && (
-            <span className="deposit-badge">
-              <WalletIcon size={13} /> DEPOSIT
-            </span>
-          )}
-          {job.needsRepairTeam && (
-            <span className="repair-badge">
-              <WrenchIcon size={13} /> REPAIR TEAM
-            </span>
-          )}
+        <div className="group-card">
+          <button type="button" className="row-button" onClick={addPayment}>
+            <PlusIcon size={19} /> Add payment
+          </button>
         </div>
-      )}
+        <p className="group-footer">
+          Total paid <strong>{formatMoney(totalPaid(job))}</strong>
+          {totalCardFee(job) > 0 &&
+            ` — includes ${formatMoney(totalCardFee(job))} card fee; ${formatMoney(paidTowardJob(job))} goes toward the job`}
+        </p>
+      </section>
 
-      <fieldset>
-        <legend>Parts</legend>
-        {job.parts.length === 0 ? (
-          <p className="empty-hint parts-empty">No parts yet — add each part you used with its price.</p>
-        ) : (
-          <ul className="parts-list">
-            {job.parts.map((part, index) => (
-              <li className="part-row" key={index}>
-                <span className="part-icon">
-                  <TagIcon size={16} />
-                </span>
-                <span className="part-info">
-                  <span className="part-name">{part.description || "Part"}</span>
-                  <span className="part-date">Added {formatPartDate(part.date)}</span>
-                </span>
-                <span className="part-cost">{formatMoney(part.cost)}</span>
-                <button
-                  type="button"
-                  className="part-remove"
-                  aria-label={`Remove ${part.description || "part"}`}
-                  onClick={() => removePart(index)}
-                >
-                  <CloseIcon size={14} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="part-add">
-          <input
-            type="text"
-            placeholder="Part name, e.g. Chimney cap"
-            value={partName}
-            onChange={(e) => setPartName(e.target.value)}
-            onKeyDown={handlePartKeyDown}
-          />
-          <div className="part-add-line2">
+      <section className="group">
+        <h2 className="group-title">Parts</h2>
+        <div className="group-card">
+          {job.parts.length === 0 && (
+            <p className="row-note">No parts yet — add each part you used with its price.</p>
+          )}
+          {job.parts.map((part, index) => (
+            <div className="part-row" key={index}>
+              <span className="part-icon">
+                <TagIcon size={16} />
+              </span>
+              <span className="part-info">
+                <span className="part-name">{part.description || "Part"}</span>
+                <span className="part-date">Added {formatPartDate(part.date)}</span>
+              </span>
+              <span className="part-cost">{formatMoney(part.cost)}</span>
+              <button
+                type="button"
+                className="part-remove"
+                aria-label={`Remove ${part.description || "part"}`}
+                onClick={() => removePart(index)}
+              >
+                <CloseIcon size={14} />
+              </button>
+            </div>
+          ))}
+          <div className="part-add">
+            <input
+              type="text"
+              placeholder="Part name"
+              aria-label="Part name"
+              value={partName}
+              onChange={(e) => setPartName(e.target.value)}
+              onKeyDown={handlePartKeyDown}
+            />
             <input
               type="number"
               step="0.01"
               inputMode="decimal"
+              className="part-price"
               placeholder="Price"
+              aria-label="Part price"
               value={partPrice}
               onChange={(e) => setPartPrice(e.target.value)}
               onKeyDown={handlePartKeyDown}
             />
-            <button type="button" className="btn btn-primary" disabled={!canAddPart} onClick={addPart}>
-              + Add part
+            <button type="button" className="btn btn-primary btn-sm" disabled={!canAddPart} onClick={addPart}>
+              Add
             </button>
           </div>
         </div>
-
-        <p className="subtotal">Parts total: {formatMoney(partsTotal(job.parts))}</p>
-      </fieldset>
-
-      <p className="total">Total job cost: {formatMoney(jobTotal(job))}</p>
-      <p className="subtotal">Balance remaining: {formatMoney(balanceRemaining(job))}</p>
-      <p className="subtotal">Tech profit (25% after parts): {formatMoney(techProfit(job))}</p>
-      {cashOwedToCompany(job) > 0 && (
-        <p className="cash-owed-callout">
-          Paid in cash — tech owes company {formatMoney(cashOwedToCompany(job))}
+        <p className="group-footer">
+          Parts total <strong>{formatMoney(partsTotal(job.parts))}</strong>
         </p>
-      )}
+      </section>
 
-      <label>
-        Date job will be done
-        <DateButton value={job.scheduledDate} onChange={(v) => updateField("scheduledDate", v)} />
-      </label>
-
-      <label>
-        Hour range
-        <input
-          type="text"
-          className="input-sm"
-          placeholder="e.g. 9-12"
-          value={job.scheduledTimeRange}
-          onChange={(e) => updateField("scheduledTimeRange", e.target.value)}
-        />
-      </label>
-      <div className="chip-scroll-row">
-        {HOUR_RANGE_PRESETS.map((range) => (
-          <button
-            key={range}
-            type="button"
-            className={`chip-pill${job.scheduledTimeRange === range ? " selected" : ""}`}
-            onClick={() => updateField("scheduledTimeRange", job.scheduledTimeRange === range ? "" : range)}
-          >
-            {range}
-          </button>
-        ))}
-      </div>
-
-      <label>
-        Repair team
-        <button
-          type="button"
-          className={`choice-box choice-box-sm${job.needsRepairTeam ? " selected" : ""}`}
-          onClick={() => updateField("needsRepairTeam", !job.needsRepairTeam)}
-        >
-          <span className="choice-emoji">
-            <WrenchIcon size={20} />
-          </span>
-          <span className="choice-label">Repair team needed</span>
-        </button>
-      </label>
+      <section className="group">
+        <h2 className="group-title">Schedule</h2>
+        <div className="group-card">
+          <div className="row">
+            <span className="row-label">Job date</span>
+            <DateButton value={job.scheduledDate} onChange={(v) => updateField("scheduledDate", v)} placeholder="Pick a date" />
+          </div>
+          <div className="row row-stack">
+            <div className="hours-line">
+              <label className="row-label" htmlFor="hour-range">
+                Hours
+              </label>
+              <input
+                id="hour-range"
+                type="text"
+                className="row-input"
+                placeholder="e.g. 9-12"
+                value={job.scheduledTimeRange}
+                onChange={(e) => updateField("scheduledTimeRange", e.target.value)}
+              />
+            </div>
+            <div className="chip-scroll-row">
+              {HOUR_RANGE_PRESETS.map((range) => (
+                <button
+                  key={range}
+                  type="button"
+                  className={`chip-pill${job.scheduledTimeRange === range ? " selected" : ""}`}
+                  aria-pressed={job.scheduledTimeRange === range}
+                  onClick={() => updateField("scheduledTimeRange", job.scheduledTimeRange === range ? "" : range)}
+                >
+                  {range}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="row">
+            <span className="row-label">Repair team needed</span>
+            <Switch
+              checked={job.needsRepairTeam}
+              onChange={(v) => updateField("needsRepairTeam", v)}
+              label="Repair team needed"
+            />
+          </div>
+        </div>
+      </section>
 
       {tags.length > 0 && (
-        <label>
-          Tags
-          <div className="tag-color-picker">
-            {tags.map((tag) => {
-              const selected = job.tagIds.includes(tag.id!);
-              return (
-                <button
-                  key={tag.id}
-                  type="button"
-                  className={`tag-chip tag-chip-toggle${selected ? " selected" : ""}`}
-                  style={{ background: `var(--${tag.color})` }}
-                  onClick={() => toggleTag(tag.id!)}
-                >
-                  {tag.name}
-                </button>
-              );
-            })}
+        <section className="group">
+          <h2 className="group-title">Tags</h2>
+          <div className="group-card group-pad">
+            <div className="tag-color-picker">
+              {tags.map((tag) => {
+                const selected = job.tagIds.includes(tag.id!);
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    className={`tag-chip tag-chip-toggle${selected ? " selected" : ""}`}
+                    style={{ background: `var(--${tag.color})` }}
+                    aria-pressed={selected}
+                    onClick={() => toggleTag(tag.id!)}
+                  >
+                    {tag.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </label>
+        </section>
       )}
 
-      <p className="subtotal" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        Job status:
-        {isDone ? (
-          <>
-            <CheckCircleIcon size={16} /> Done — completed {paymentDateClearingBalance(job) ?? todayISO()}
-          </>
-        ) : (
-          <>
-            <ClockIcon size={16} /> Awaiting
-          </>
-        )}
-        <span className="form-hint">— set automatically once the balance is paid off</span>
-      </p>
+      <section className="group">
+        <h2 className="group-title">Summary</h2>
+        <div className="group-card">
+          <div className="row">
+            <span className="row-label">Total job cost</span>
+            <strong>{formatMoney(jobTotal(job))}</strong>
+          </div>
+          <div className="row">
+            <span className="row-label">Total paid</span>
+            <span className="row-value">{formatMoney(totalPaid(job))}</span>
+          </div>
+          <div className="row">
+            <span className="row-label">Balance remaining</span>
+            <strong>{formatMoney(balanceRemaining(job))}</strong>
+          </div>
+          <div className="row">
+            <span className="row-label">Tech profit</span>
+            <span className="row-value">
+              {formatMoney(techProfit(job))} <span className="form-hint">· 25% after parts</span>
+            </span>
+          </div>
+          <div className="row">
+            <span className="row-label">Status</span>
+            <span className="row-value status-value">
+              {isDone ? (
+                <>
+                  <CheckCircleIcon size={16} /> Done · {paymentDateClearingBalance(job) ?? todayISO()}
+                </>
+              ) : (
+                <>
+                  <ClockIcon size={16} /> Awaiting
+                </>
+              )}
+            </span>
+          </div>
+          {(isDeposit || job.needsRepairTeam) && (
+            <div className="row">
+              <div className="badge-row">
+                {isDeposit && (
+                  <span className="badge accent">
+                    <WalletIcon size={13} /> Deposit
+                  </span>
+                )}
+                {job.needsRepairTeam && (
+                  <span className="badge repair">
+                    <WrenchIcon size={13} /> Repair team
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          {cashOwedToCompany(job) > 0 && (
+            <p className="row-note warn">Paid in cash — tech owes company {formatMoney(cashOwedToCompany(job))}</p>
+          )}
+        </div>
+        <p className="group-footer">The status is set automatically once the balance is paid off.</p>
+      </section>
 
-      <div className="form-actions">
-        <button type="submit" className="btn btn-primary" disabled={saving}>
-          {saving ? "Saving..." : "Save Job"}
-        </button>
-        <button type="button" className="btn" onClick={() => navigate("/jobs")}>
-          Cancel
-        </button>
-      </div>
+      <button type="button" className="btn btn-plain" onClick={() => navigate("/jobs")}>
+        Cancel
+      </button>
+
+      {/* Pinned above the tab bar (rendered into the phone frame, not the scrolling page), so
+          the balance and Save are always in reach; it submits this form by its id. */}
+      {viewport &&
+        createPortal(
+          <div className="save-bar">
+            <div className="save-bar-figure">
+              <span>Balance</span>
+              <strong>{formatMoney(balanceRemaining(job))}</strong>
+            </div>
+            <div className="save-bar-figure">
+              <span>Tech profit</span>
+              <strong>{formatMoney(techProfit(job))}</strong>
+            </div>
+            <button type="submit" form="job-form" className="btn btn-primary" disabled={saving}>
+              {saving ? "Saving..." : "Save job"}
+            </button>
+          </div>,
+          viewport
+        )}
     </form>
   );
 }
