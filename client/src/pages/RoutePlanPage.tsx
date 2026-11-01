@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   DndContext,
   KeyboardSensor,
@@ -26,6 +27,9 @@ import { buildGoogleMapsRouteUrl } from "../googleMapsRoute";
 import { getCurrentLocation } from "../currentLocation";
 import { saveRoute, loadSavedRoute, type SavedRoute } from "../savedRoute";
 import { loadReviewTemplate } from "../reviewTemplate";
+import { clearRouteDraft, loadRouteDraft, saveRouteDraft } from "../routeDraft";
+import { api } from "../api";
+import CustomerTextSheet, { type CustomerTextTarget } from "../components/CustomerTextSheet";
 import {
   ClipboardIcon,
   MapPinIcon,
@@ -36,6 +40,9 @@ import {
   FolderIcon,
   GripIcon,
   HistoryIcon,
+  ClockIcon,
+  NavigateIcon,
+  PlusCircleIcon,
 } from "../components/icons";
 
 // One draggable row in the route. Only the grip handle starts a drag, so the row's own
@@ -66,6 +73,70 @@ function SortableRow({ id, children }: { id: number; children: (handle: ReactNod
   );
 }
 
+// The buttons under every stop, wherever it's listed (pasted stops, the built route, the
+// saved route) — same set, same order, so the tech's thumb learns one layout.
+function StopActions({
+  stop,
+  navigateTo,
+  logged,
+  copied,
+  onCopy,
+  onText,
+  onLogJob,
+}: {
+  stop: { rawText: string; address: string; time: string };
+  navigateTo: string | LatLng | null;
+  logged: boolean;
+  copied: "ticket" | "number" | null;
+  onCopy: (what: "ticket" | "number", text: string) => void;
+  onText: (target: CustomerTextTarget) => void;
+  onLogJob: () => void;
+}) {
+  const ticketNumber = extractTicketNumber(stop.rawText);
+  return (
+    <div className="stop-actions">
+      {navigateTo && (
+        <a href={buildGoogleMapsRouteUrl([navigateTo])} target="_blank" rel="noreferrer" className="btn btn-sm btn-tinted">
+          <MapPinIcon size={16} /> Navigate
+        </a>
+      )}
+      <button
+        type="button"
+        className="btn btn-sm"
+        onClick={() => onText({ kind: "eta", rawText: stop.rawText, time: stop.time })}
+      >
+        <NavigateIcon size={16} /> ETA
+      </button>
+      <button
+        type="button"
+        className="btn btn-sm"
+        onClick={() => onText({ kind: "late", rawText: stop.rawText, time: stop.time })}
+      >
+        <ClockIcon size={16} /> Running late
+      </button>
+      <button type="button" className={`btn btn-sm${logged ? "" : " btn-tinted"}`} onClick={onLogJob}>
+        {logged ? (
+          <>
+            <CheckCircleIcon size={16} /> Logged
+          </>
+        ) : (
+          <>
+            <PlusCircleIcon size={16} /> Log job
+          </>
+        )}
+      </button>
+      <button type="button" className="btn btn-sm" onClick={() => onCopy("ticket", stop.rawText)}>
+        <ClipboardIcon size={16} /> {copied === "ticket" ? "Copied!" : "Copy ticket"}
+      </button>
+      {ticketNumber && (
+        <button type="button" className="btn btn-sm" onClick={() => onCopy("number", ticketNumber)}>
+          {copied === "number" ? "Copied!" : `Copy #${ticketNumber}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface Stop {
   id: number;
   name: string;
@@ -79,20 +150,27 @@ type BuildState = "idle" | "geocoding";
 let nextStopId = 1;
 
 export default function RoutePlanPage() {
+  const navigate = useNavigate();
+  // Read once: today's route as it was left, if the tech stepped away to log a job.
+  const [draft] = useState(() => {
+    const d = loadRouteDraft();
+    if (d) nextStopId = Math.max(nextStopId, ...d.stops.map((s) => s.id + 1));
+    return d;
+  });
   const [pastedText, setPastedText] = useState("");
-  const [stops, setStops] = useState<Stop[]>([]);
+  const [stops, setStops] = useState<Stop[]>(draft?.stops ?? []);
   const [buildState, setBuildState] = useState<BuildState>("idle");
-  const [noteMessage, setNoteMessage] = useState<string | null>(null);
+  const [noteMessage, setNoteMessage] = useState<string | null>(draft?.noteMessage ?? null);
 
   // The time-sorted (and, within a tied start time, shortest-travel-sorted) order — fixed
   // once "Calculate route" runs. Stops with no detectable time are handled separately
   // below and merged in wherever the user manually places them.
-  const [timedOrder, setTimedOrder] = useState<Stop[] | null>(null);
-  const [unscheduledStops, setUnscheduledStops] = useState<Stop[]>([]);
-  const [noAddressStops, setNoAddressStops] = useState<Stop[]>([]);
-  const [placement, setPlacement] = useState<Record<number, number>>({});
-  const [pointById, setPointById] = useState<Record<number, LatLng>>({});
-  const [notFoundStopIds, setNotFoundStopIds] = useState<number[]>([]);
+  const [timedOrder, setTimedOrder] = useState<Stop[] | null>(draft?.timedOrder ?? null);
+  const [unscheduledStops, setUnscheduledStops] = useState<Stop[]>(draft?.unscheduledStops ?? []);
+  const [noAddressStops, setNoAddressStops] = useState<Stop[]>(draft?.noAddressStops ?? []);
+  const [placement, setPlacement] = useState<Record<number, number>>(draft?.placement ?? {});
+  const [pointById, setPointById] = useState<Record<number, LatLng>>(draft?.pointById ?? {});
+  const [notFoundStopIds, setNotFoundStopIds] = useState<number[]>(draft?.notFoundStopIds ?? []);
   const [expandedStopId, setExpandedStopId] = useState<number | null>(null);
 
   const [savedRoute, setSavedRoute] = useState<SavedRoute | null>(() => loadSavedRoute());
@@ -100,25 +178,85 @@ export default function RoutePlanPage() {
   const [savedExpandedStopId, setSavedExpandedStopId] = useState<number | null>(null);
   const [justSaved, setJustSaved] = useState(false);
 
-  const [copiedTicketId, setCopiedTicketId] = useState<number | null>(null);
-  const [copiedNumberId, setCopiedNumberId] = useState<number | null>(null);
-  const [savedCopiedTicketId, setSavedCopiedTicketId] = useState<number | null>(null);
-  const [savedCopiedNumberId, setSavedCopiedNumberId] = useState<number | null>(null);
+  // Which stop's copy button just copied, as "<list>-<stop id>-<ticket|number>".
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [copiedReviewTemplate, setCopiedReviewTemplate] = useState(false);
+  const [textTarget, setTextTarget] = useState<CustomerTextTarget | null>(null);
+  // Ticket numbers that already have a job logged, so a stop shows "Logged" once it's done.
+  const [loggedNumbers, setLoggedNumbers] = useState<Set<string>>(new Set());
 
   // Stop ids in the order the user dragged them into — null means "use the app's
   // suggested order". Cleared whenever the route is rebuilt.
-  const [manualOrder, setManualOrder] = useState<number[] | null>(null);
+  const [manualOrder, setManualOrder] = useState<number[] | null>(draft?.manualOrder ?? null);
+
+  useEffect(() => {
+    api.listJobs().then((jobs) => {
+      const numbers = jobs
+        .map((j) => extractTicketNumber(j.rawTicketText))
+        .filter((n): n is string => n !== null);
+      setLoggedNumbers(new Set(numbers));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (stops.length === 0) {
+      clearRouteDraft();
+      return;
+    }
+    saveRouteDraft({
+      stops,
+      timedOrder,
+      unscheduledStops,
+      noAddressStops,
+      placement,
+      pointById,
+      notFoundStopIds,
+      manualOrder,
+      noteMessage,
+    });
+  }, [stops, timedOrder, unscheduledStops, noAddressStops, placement, pointById, notFoundStopIds, manualOrder, noteMessage]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  async function copyText(text: string, id: number, setCopiedId: (v: number | null) => void) {
+  async function copyText(text: string, key: string) {
     await navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 1500);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey((cur) => (cur === key ? null : cur)), 1500);
+  }
+
+  // Carries the ticket over to the New job tab, already pasted, so logging a stop is
+  // one tap from the route instead of copy → switch tab → paste.
+  function handleLogJob(rawText: string) {
+    navigate("/new", { state: { ticket: rawText } });
+  }
+
+  function isLogged(rawText: string): boolean {
+    const n = extractTicketNumber(rawText);
+    return n !== null && loggedNumbers.has(n);
+  }
+
+  // Props shared by every StopActions row; `list` keeps the "Copied!" flash on the row tapped.
+  function actionProps(list: string, stop: Stop) {
+    const prefix = `${list}-${stop.id}-`;
+    return {
+      stop,
+      logged: isLogged(stop.rawText),
+      copied: copiedKey?.startsWith(prefix) ? (copiedKey.slice(prefix.length) as "ticket" | "number") : null,
+      onCopy: (what: "ticket" | "number", text: string) => copyText(text, prefix + what),
+      onText: setTextTarget,
+      onLogJob: () => handleLogJob(stop.rawText),
+    };
+  }
+
+  function handleClearAll() {
+    if (!window.confirm("Clear all stops and start a new route?")) return;
+    setStops([]);
+    setPastedText("");
+    setExpandedStopId(null);
+    resetRoute();
   }
 
   async function handleCopyReviewTemplate() {
@@ -376,36 +514,16 @@ export default function RoutePlanPage() {
               <span className="empty-hint">
                 <CalendarIcon size={13} /> {timeLabel(stop)}
               </span>
-              <div className="jobs-toolbar" style={{ flexDirection: "row", flexWrap: "wrap" }}>
-                {stop.address && (
-                  <a
-                    href={buildGoogleMapsRouteUrl([stop.address])}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn-sm btn-tinted">
-                      <MapPinIcon size={16} /> Navigate
-                  </a>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  onClick={() => copyText(stop.rawText, stop.id, setCopiedTicketId)}
-                >
-                  <ClipboardIcon size={16} /> {copiedTicketId === stop.id ? "Copied!" : "Copy ticket"}
-                </button>
-                {extractTicketNumber(stop.rawText) && (
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => copyText(extractTicketNumber(stop.rawText)!, stop.id, setCopiedNumberId)}
-                  >
-                    {copiedNumberId === stop.id ? "Copied!" : `Copy #${extractTicketNumber(stop.rawText)}`}
-                  </button>
-                )}
-              </div>
+              <StopActions {...actionProps("list", stop)} navigateTo={stop.address || null} />
             </div>
           ))}
         </div>
+      )}
+
+      {stops.length > 0 && (
+        <button type="button" className="btn btn-plain btn-sm" onClick={handleClearAll}>
+          Clear all stops
+        </button>
       )}
 
       <button
@@ -535,31 +653,7 @@ export default function RoutePlanPage() {
                       {stop.rawText || "No ticket text saved for this stop."}
                     </p>
                   )}
-                  <div className="jobs-toolbar" style={{ flexDirection: "row", flexWrap: "wrap" }}>
-                    <a
-                      href={buildGoogleMapsRouteUrl([pointById[stop.id] ?? stop.address])}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-sm btn-tinted">
-                      <MapPinIcon size={16} /> Navigate
-                    </a>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => copyText(stop.rawText, stop.id, setCopiedTicketId)}
-                    >
-                      <ClipboardIcon size={16} /> {copiedTicketId === stop.id ? "Copied!" : "Copy ticket"}
-                    </button>
-                    {extractTicketNumber(stop.rawText) && (
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => copyText(extractTicketNumber(stop.rawText)!, stop.id, setCopiedNumberId)}
-                      >
-                        {copiedNumberId === stop.id ? "Copied!" : `Copy #${extractTicketNumber(stop.rawText)}`}
-                      </button>
-                    )}
-                  </div>
+                  <StopActions {...actionProps("route", stop)} navigateTo={pointById[stop.id] ?? stop.address} />
                   </div>
                   {handle}
                 </>
@@ -638,31 +732,7 @@ export default function RoutePlanPage() {
                       {stop.rawText || "No ticket text saved for this stop."}
                     </p>
                   )}
-                  <div className="jobs-toolbar" style={{ flexDirection: "row", flexWrap: "wrap" }}>
-                    <a
-                      href={buildGoogleMapsRouteUrl([stop.address])}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-sm btn-tinted">
-                      <MapPinIcon size={16} /> Navigate
-                    </a>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => copyText(stop.rawText, stop.id, setSavedCopiedTicketId)}
-                    >
-                      <ClipboardIcon size={16} /> {savedCopiedTicketId === stop.id ? "Copied!" : "Copy ticket"}
-                    </button>
-                    {extractTicketNumber(stop.rawText) && (
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => copyText(extractTicketNumber(stop.rawText)!, stop.id, setSavedCopiedNumberId)}
-                      >
-                        {savedCopiedNumberId === stop.id ? "Copied!" : `Copy #${extractTicketNumber(stop.rawText)}`}
-                      </button>
-                    )}
-                  </div>
+                  <StopActions {...actionProps("saved", stop)} navigateTo={stop.address || null} />
                   <div style={{ height: 6 }} />
                 </li>
               );
@@ -673,6 +743,8 @@ export default function RoutePlanPage() {
           </a>
         </div>
       )}
+
+      <CustomerTextSheet target={textTarget} onClose={() => setTextTarget(null)} />
     </div>
   );
 }

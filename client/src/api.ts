@@ -73,7 +73,7 @@ function resolveLeadOutcome(job: Job): LeadOutcome {
 // Job status is derived the same way: awaiting until the balance clears, then done (and
 // ready for the paycheck). A job with no items and no payments has a $0 balance too, so it
 // counts as done.
-function resolveJobStatus(job: Job): JobStatus {
+export function resolveJobStatus(job: Job): JobStatus {
   const total = jobTotal(job);
   const paid = paidTowardJob(job);
   return paid >= total ? "done" : "awaiting";

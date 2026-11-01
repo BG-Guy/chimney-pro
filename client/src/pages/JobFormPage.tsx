@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../api";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { api, resolveJobStatus } from "../api";
+import { formatTicketText } from "../formatTicket";
 import {
   DEPOSIT_METHODS,
   DEPOSIT_METHOD_ICON,
@@ -61,7 +62,10 @@ const PAID_METHOD_OPTIONS: Choice<DepositMethod>[] = DEPOSIT_METHODS.map((m) => 
 export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [job, setJob] = useState<Job>(emptyJob());
+  const location = useLocation();
+  // "Log job" on the Route tab hands the stop's ticket over, already pasted in.
+  const handedTicket = mode === "new" ? (location.state as { ticket?: string } | null)?.ticket : undefined;
+  const [job, setJob] = useState<Job>(() => ({ ...emptyJob(), rawTicketText: handedTicket ?? "" }));
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -200,16 +204,33 @@ export default function JobFormPage({ mode }: { mode: "new" | "edit" }) {
     }
   }
 
+  // The final ticket goes on the clipboard the moment Save is tapped, ready to paste to the
+  // office. Written before any await: iPhone Safari only allows clipboard writes straight
+  // from the tap, so the status is worked out here the same way saving will.
+  function copyFinalTicket(): Promise<boolean> {
+    const text = formatTicketText({ ...job, status: resolveJobStatus(job) });
+    try {
+      return navigator.clipboard.writeText(text).then(
+        () => true,
+        () => false
+      );
+    } catch {
+      return Promise.resolve(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
+    const copied = copyFinalTicket();
     try {
       if (mode === "new") {
         await api.createJob(job);
       } else {
         await api.updateJob(Number(id), job);
       }
-      navigate("/jobs");
+      const toast = (await copied) ? "Saved · ticket copied" : "Job saved";
+      navigate("/jobs", { state: { toast } });
     } finally {
       setSaving(false);
     }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import {
   STATUS_ICON,
@@ -203,6 +203,17 @@ export default function JobListPage() {
   }, []);
 
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
+  // A just-saved job arrives with a note to show ("Saved · ticket copied"). Shown once, then
+  // cleared from the history entry so going back/forward doesn't flash it again.
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const message = (location.state as { toast?: string } | null)?.toast;
+    if (!message) return;
+    flash(message);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location, navigate]);
 
   function toggleTagFilter(tagId: number) {
     setTagFilter((prev) => (prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]));

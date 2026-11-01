@@ -2020,6 +2020,140 @@ input[type="number"]::-webkit-inner-spin-button {
   }
 }
 
+/* ---------- Customer texts (ETA / running late) ---------- */
+
+.text-sheet-section,
+.text-sheet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.text-sheet-field .row-input {
+  flex: none;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--card);
+  text-align: left;
+}
+
+.text-sheet-preview {
+  color: var(--text);
+  font-size: 15px;
+  text-wrap: pretty;
+}
+
+.eta-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.eta-stepper strong {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.eta-stepper button {
+  width: 48px;
+  height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: var(--fill-2);
+  color: var(--text);
+  font-size: 22px;
+  cursor: pointer;
+  transition-property: transform, opacity;
+  transition-duration: 120ms;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.eta-stepper button:active {
+  transform: scale(0.96);
+}
+
+.eta-stepper button:disabled {
+  opacity: 0.4;
+}
+
+.wheel-pair {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.wheel-dash {
+  font-size: 20px;
+  color: var(--text-3);
+}
+
+.wheel {
+  position: relative;
+  flex: 1;
+}
+
+.wheel-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 10px;
+  background: var(--fill-2);
+  pointer-events: none;
+}
+
+.wheel-scroll {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  -webkit-mask-image: linear-gradient(transparent, #000 35%, #000 65%, transparent);
+  mask-image: linear-gradient(transparent, #000 35%, #000 65%, transparent);
+  outline: none;
+}
+
+.wheel-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.wheel-scroll:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  border-radius: 10px;
+}
+
+.wheel-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  scroll-snap-align: start;
+  border: none;
+  background: none;
+  color: var(--text-3);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition-property: color, transform;
+  transition-duration: 150ms;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wheel-item.selected {
+  color: var(--text);
+  font-weight: 600;
+  transform: scale(1.06);
+}
+
 /* Calendar (scheduled jobs + date range) */
 .calendar-header {
   display: flex;
